@@ -1,4 +1,4 @@
-# TP N◦1: File Transfer
+# File Transfer
 
 ## Configuración inicial
 Para poder correr la aplicación es necesario ejecutar los siguientes comandos:
