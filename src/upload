@@ -1,16 +1,8 @@
-import socket
+from socket import *
 from argparse import ArgumentParser
 
-# UDP_IP = "127.0.0.1"
-# UDP_PORT = 6000
-
-# MESSAGE = b"Hola!"
-
-# sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-
-# sock.sendto(MESSAGE, (UDP_IP, UDP_PORT))
-
-# print("Message sent:", MESSAGE)
+SERVER_IP = "127.0.0.1"
+SERVER_PORT = 6000
 
 # TODO: crear función build_menu que reciba por parámetro "upload", "download" o "server"
 # y te arme el menú
@@ -21,16 +13,27 @@ def build_menu():
     group.add_argument('-v', '--verbose', action='store_true', help='increase output verbosity')
     group.add_argument('-q', '--quiet', action='store_true', help='decrease output verbosity')
 
-    parser.add_argument('-H', '--host', help='server IP address', metavar='ADDR')
-    parser.add_argument('-p', '--port', type=int, help='server port', metavar='PORT')
+    parser.add_argument('-H', '--host', default=SERVER_IP, help='server IP address. Defaults to 127.0.0.1', metavar='ADDR')
+    parser.add_argument('-p', '--port', type=int, default=SERVER_PORT, help='server port. Defaults to port 6000', metavar='PORT')
     parser.add_argument('-s', '--src', help='source file path', metavar='FILEPATH', required=True)
     parser.add_argument('-n', '--name', help='file name', metavar='FILENAME', required=True)
     
     return parser.parse_args()
     
+def upload_file(host, port, file_name):
+    message = f"Sending file {file_name}"
+    
+    clientSocket = socket(AF_INET, SOCK_DGRAM)
+    clientSocket.sendto(message.encode(), (host, port))
+    print(f"Message sent: {message}")
+    
+    data, serverAddr = clientSocket.recvfrom(1024)
+    print(f"Response received: {data.decode()}")
+    
 
 def main():
     args = build_menu()
+    upload_file(args.host, args.port, args.name)
     
 if __name__ == "__main__":
     main()
