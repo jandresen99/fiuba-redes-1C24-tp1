@@ -6,5 +6,5 @@ Para poder correr la aplicación es necesario ejecutar los siguientes comandos:
 ```
 chmod +x start-server
 chmod +x upload
-chmod +x dowload
+chmod +x download
 ```

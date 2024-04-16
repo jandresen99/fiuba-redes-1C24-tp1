@@ -1,37 +1,21 @@
 from socket import *
-from argparse import ArgumentParser
+from lib.utils import get_server_args
 import logging
 
 logger = logging.getLogger(__name__)
 
-def start():
-    UDP_IP = "127.0.0.1"
-    UDP_PORT = 6000
-
+def start(ip, port):
     sock = socket(AF_INET, SOCK_DGRAM)
-    sock.bind((UDP_IP, UDP_PORT))
-    logger.info("Listening on %s:%d", UDP_IP, UDP_PORT)
+    sock.bind((ip, port))
+    logger.info("Listening on %s:%d", ip, port)
 
     while True:
         data, addr = sock.recvfrom(1024)
         logger.info("Message received from %s: %s", addr, data.decode())
         sock.sendto("ACK".encode(), addr)        
 
-def menu():
-    parser = ArgumentParser(prog='start-server')
-    group = parser.add_mutually_exclusive_group()
-    group.add_argument('-v', '--verbose', action='store_true', help='increase output verbosity')
-    group.add_argument('-q', '--quiet', action='store_true', help='decrease output verbosity')
-    parser.add_argument('-H', '--host', help='service IP address', metavar='ADDR')
-    parser.add_argument('-p', '--port', type=int, help='service port', metavar='PORT')
-    parser.add_argument('-s', '--storage', help='storage dir path', metavar='DIRPATH')
-
-    args = parser.parse_args()
-
-    return args
-
 def main():
-    args = menu()
+    args = get_server_args()
 
     if args.verbose:
         level = logging.DEBUG
@@ -45,7 +29,7 @@ def main():
     ch.setLevel(level)
     logger.addHandler(ch)
 
-    start()
+    start(args.host, args.port)
 
 
 
