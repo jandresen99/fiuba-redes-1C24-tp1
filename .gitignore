@@ -1,3 +1,5 @@
 src/server.log
 server.log
 .DS_Store
+
+__pycache__/
