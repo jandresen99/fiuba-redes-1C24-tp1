@@ -26,6 +26,7 @@ def main():
     try:
         args = get_download_args()
         download_file(args.host, args.port, args.name)
+        
     except KeyboardInterrupt:
         print("\nClosing Client...")
     

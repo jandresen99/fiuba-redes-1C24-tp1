@@ -1,47 +1,9 @@
-from socket import *
-from threading import Thread
 import logging
+
 from lib.utils import get_server_args
-from lib.rdt_pkg import RDTPackage
+from lib.server import Server
 
 logger = logging.getLogger(__name__)
-# Donde mantengo las conexiones para diferenciar entre cliente nuevo y viejo
-clients = set()
-
-# Por ahora solo muestra lo que recivió
-def handle_client(datagram, addr):    
-    pkg: RDTPackage = RDTPackage.extract(datagram)
-    logger.info("Message received from %s: %s", addr, pkg)
-    return
-
-def start(ip, port):
-    server_sock = socket(AF_INET, SOCK_DGRAM)
-    server_sock.bind((ip, port))
-    logger.info("Listening on %s:%d", ip, port)
-
-    # Este thread es el que se encarga de escuchar mensajes recibidos constantemente.
-    # Es el único punto de entrada de mensajes del server
-    # Parece que no tiene mucho sentido crear un socket UDP por cliente, buscarle
-    # un puerto a cada socket y handlear errores para eso. Suena bardo.
-    # Luego cada thread por cliente procesa el mensaje recibido
-    # Para ver manejo de clientes concurrentemente usando UDP:
-    # https://stackoverflow.com/questions/45904197/multiple-udp-sockets-and-multiple-clients
-    while True:
-        datagram, addr = server_sock.recvfrom(1024)
-        # TODO: acá habría que hacer el 3-way handshake?
-        if addr not in clients:
-            logger.info(f"New client: %s", addr)
-            # Le aviso al cliente que escuché su conexión
-            print(f"[NEW] Enviando ACK a ", addr)
-            server_sock.sendto("ACK".encode(), addr)
-            clients.add(addr)
-        else:
-            logger.info(f"[OLD] Client: %s", addr)
-            print(f"[OLD] Enviando ACK a ", addr)
-            server_sock.sendto("ACK".encode(), addr)    
-                     
-            client_thread = Thread(target=handle_client, args=(datagram, addr))   
-            client_thread.start()
             
 def set_logger(args):
     if args.verbose:
@@ -60,11 +22,12 @@ def main():
     try:
         args = get_server_args()
         set_logger(args)
-        start(args.host, args.port)
+        server = Server(args.host, args.port, logger)
+        server.start()
         
     except KeyboardInterrupt:
         print('\nClosing server...')
-        # TODO: liberar recursos
+        server.stop()
 
 
 if __name__ == "__main__":

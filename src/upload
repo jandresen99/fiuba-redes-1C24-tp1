@@ -27,6 +27,7 @@ def main():
     try:
         args = get_upload_args()
         upload_file(args.host, args.port, args.name)
+        
     except KeyboardInterrupt:
         print("\nClosing client...")
         # TODO: liberar recursos

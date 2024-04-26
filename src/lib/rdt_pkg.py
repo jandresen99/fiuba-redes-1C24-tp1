@@ -18,7 +18,7 @@ class RDTPackage:
             data={self.data}          
         )"""
         
-    def _encode(self):
+    def _encode(self) -> bytes:
         pkg = bytes()
         pkg += self.seq_num.to_bytes(4, 'big')
         pkg += self.data
