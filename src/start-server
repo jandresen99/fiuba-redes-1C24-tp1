@@ -11,7 +11,8 @@ def start(ip, port):
 
     while True:
         data, addr = sock.recvfrom(1024)
-        logger.info("Message received from %s: %s", addr, data.decode())
+        hex_data = " ".join(f"\\x{byte:02x}" for byte in data)
+        logger.info("Message received from %s: %s", addr, hex_data)
         sock.sendto("ACK".encode(), addr)        
 
 def main():

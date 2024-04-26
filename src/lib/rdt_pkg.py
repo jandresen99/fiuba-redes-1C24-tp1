@@ -1,0 +1,34 @@
+# Por ahora este es el archivo que tiene todo lo relacionado con el armado y 
+# extracción de paquetes
+
+""" Clase que se encarga de crear y extraer paquetes RDT """
+class RDTPackage:
+    # Init deja al paquete listo para ser enviado
+    def __init__(self, seq_num: int, data: bytes):
+        # Header
+        self.seq_num = seq_num
+        self.checksum = self._checksum()
+        
+        self.data = data
+        self.pkg = self._encode()
+        
+    def _checksum(self):
+        return bytearray(16)
+        
+    def _encode(self):
+        pkg = bytes()
+        pkg += self.seq_num.to_bytes(4, 'big')
+        pkg += self.checksum
+        pkg += self.data
+        return pkg
+        
+    def get_pkg(self):
+        return self.pkg
+    
+    @staticmethod
+    def extract(pkg: bytes):
+        seq_num = int.from_bytes(pkg[:4], 'big')
+        checksum = pkg[4:6]
+        data = pkg[6:]
+        
+        return RDTPackage(seq_num, data)

@@ -1,0 +1,1 @@
+# Archivo donde se definen los métodos send y receives
