@@ -1,19 +1,32 @@
 from socket import *
 from lib.utils import get_download_args
+from lib.rdt_pkg import RDTPackage
     
 def download_file(host, port, file_name):
-    message = f"Requesting file {file_name}"
+    print("Connecting to the server...")
+    client_socket = socket(AF_INET, SOCK_DGRAM)
+    # TODO: 3-way handshake
+    # Aviso que me quiero conectar
+    client_socket.sendto("Hola".encode(), (host, port))
+    # Acknowledge la conexión
+    data, _ = client_socket.recvfrom(1024)
+    print(f"Server answered: %s", data)
     
-    clientSocket = socket(AF_INET, SOCK_DGRAM)
-    clientSocket.sendto(message.encode(), (host, port))
-    print(f"Message sent: {message}")
+    # Envío el mensaje
+    data = f"Requesting file {file_name}".encode()
+    pkg = RDTPackage(14, data).pkg
+    client_socket.sendto(pkg, (host, port))
+    print(f"Package sent: {pkg}")
     
-    data, serverAddr = clientSocket.recvfrom(1024)
+    data, _ = client_socket.recvfrom(1024)
     print(f"Response received: {data.decode()}")
     
 def main():
-    args = get_download_args()
-    download_file(args.host, args.port, args.name)
+    try:
+        args = get_download_args()
+        download_file(args.host, args.port, args.name)
+    except KeyboardInterrupt:
+        print("\nClosing Client...")
     
 if __name__ == "__main__":
     main()

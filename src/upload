@@ -12,7 +12,7 @@ def upload_file(host, port, file_name):
     data, _ = client_socket.recvfrom(1024)
     print(f"Server answered: %s", data)
         
-    # Envió el mensaje
+    # Envío el mensaje
     data = f"Sending file {file_name}".encode()
     package = RDTPackage(11, data)
     client_socket.sendto(package.get_pkg(), (host, port))
@@ -23,8 +23,12 @@ def upload_file(host, port, file_name):
     
 
 def main():
-    args = get_upload_args()
-    upload_file(args.host, args.port, args.name)
+    try:
+        args = get_upload_args()
+        upload_file(args.host, args.port, args.name)
+    except KeyboardInterrupt:
+        print("\nClosing client...")
+        # TODO: liberar recursos
     
 if __name__ == "__main__":
     main()

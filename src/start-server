@@ -8,13 +8,10 @@ logger = logging.getLogger(__name__)
 # Donde mantengo las conexiones para diferenciar entre cliente nuevo y viejo
 clients = set()
 
-# Para ver manejo de clientes concurrentemente usando UDP:
-# https://stackoverflow.com/questions/45904197/multiple-udp-sockets-and-multiple-clients
-def handle_client(sock, addr):    
-    # pkg, addr = sock.recvfrom(1024)
-    # pkg: RDTPackage = RDTPackage.extract(pkg)
-    # logger.info("Message received from %s: %s", addr, pkg)
-    # sock.sendto("ACK".encode(), addr)
+# Por ahora solo muestra lo que recivió
+def handle_client(datagram, addr):    
+    pkg: RDTPackage = RDTPackage.extract(datagram)
+    logger.info("Message received from %s: %s", addr, pkg)
     return
 
 def start(ip, port):
@@ -27,8 +24,10 @@ def start(ip, port):
     # Parece que no tiene mucho sentido crear un socket UDP por cliente, buscarle
     # un puerto a cada socket y handlear errores para eso. Suena bardo.
     # Luego cada thread por cliente procesa el mensaje recibido
+    # Para ver manejo de clientes concurrentemente usando UDP:
+    # https://stackoverflow.com/questions/45904197/multiple-udp-sockets-and-multiple-clients
     while True:
-        pkg, addr = server_sock.recvfrom(1024)
+        datagram, addr = server_sock.recvfrom(1024)
         # TODO: acá habría que hacer el 3-way handshake?
         if addr not in clients:
             logger.info(f"New client: %s", addr)
@@ -39,27 +38,31 @@ def start(ip, port):
         else:
             logger.info(f"[OLD] Client: %s", addr)
             print(f"[OLD] Enviando ACK a ", addr)
-            server_sock.sendto("ACK".encode(), addr)             
-            client_thread = Thread(target=handle_client, args=(server_sock, addr))   
+            server_sock.sendto("ACK".encode(), addr)    
+                     
+            client_thread = Thread(target=handle_client, args=(datagram, addr))   
             client_thread.start()
 
 def main():
-    args = get_server_args()
+    try:
+        args = get_server_args()
 
-    if args.verbose:
-        level = logging.DEBUG
-    elif args.quiet:
-        level = logging.WARNING
-    else:
-        level = logging.INFO
+        if args.verbose:
+            level = logging.DEBUG
+        elif args.quiet:
+            level = logging.WARNING
+        else:
+            level = logging.INFO
 
-    logging.basicConfig(filename='server.log', level=level)
-    ch = logging.StreamHandler()
-    ch.setLevel(level)
-    logger.addHandler(ch)
-
-    start(args.host, args.port)
-
+        logging.basicConfig(filename='server.log', level=level)
+        ch = logging.StreamHandler()
+        ch.setLevel(level)
+        logger.addHandler(ch)
+        
+        start(args.host, args.port)
+    except KeyboardInterrupt:
+        print('\nClosing server...')
+        # TODO: liberar recursos
 
 
 if __name__ == "__main__":
