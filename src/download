@@ -9,17 +9,18 @@ def download_file(host, port, file_name):
     # Aviso que me quiero conectar
     client_socket.sendto("Hola".encode(), (host, port))
     # Acknowledge la conexión
-    data, _ = client_socket.recvfrom(1024)
-    print(f"Server answered: %s", data)
+    datagram, _ = client_socket.recvfrom(1024)
+    print(f"Server answered: %s", datagram)
     
     # Envío el mensaje
     data = f"Requesting file {file_name}".encode()
     pkg = RDTPackage(14, data).pkg
+    
     client_socket.sendto(pkg, (host, port))
     print(f"Package sent: {pkg}")
     
-    data, _ = client_socket.recvfrom(1024)
-    print(f"Response received: {data.decode()}")
+    datagram, _ = client_socket.recvfrom(1024)
+    print(f"Response received: {datagram.decode()}")
     
 def main():
     try:

@@ -31,7 +31,7 @@ def start(ip, port):
         # TODO: acá habría que hacer el 3-way handshake?
         if addr not in clients:
             logger.info(f"New client: %s", addr)
-            # Le aviso al cliente que escuche su conexión
+            # Le aviso al cliente que escuché su conexión
             print(f"[NEW] Enviando ACK a ", addr)
             server_sock.sendto("ACK".encode(), addr)
             clients.add(addr)
@@ -42,24 +42,26 @@ def start(ip, port):
                      
             client_thread = Thread(target=handle_client, args=(datagram, addr))   
             client_thread.start()
+            
+def set_logger(args):
+    if args.verbose:
+        level = logging.DEBUG
+    elif args.quiet:
+        level = logging.WARNING
+    else:
+        level = logging.INFO
+
+    logging.basicConfig(filename='server.log', level=level)
+    ch = logging.StreamHandler()
+    ch.setLevel(level)
+    logger.addHandler(ch)
 
 def main():
     try:
         args = get_server_args()
-
-        if args.verbose:
-            level = logging.DEBUG
-        elif args.quiet:
-            level = logging.WARNING
-        else:
-            level = logging.INFO
-
-        logging.basicConfig(filename='server.log', level=level)
-        ch = logging.StreamHandler()
-        ch.setLevel(level)
-        logger.addHandler(ch)
-        
+        set_logger(args)
         start(args.host, args.port)
+        
     except KeyboardInterrupt:
         print('\nClosing server...')
         # TODO: liberar recursos
