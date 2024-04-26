@@ -3,14 +3,22 @@ from lib.utils import get_upload_args
 from lib.rdt_pkg import RDTPackage
     
 def upload_file(host, port, file_name):
+    print("Connecting to the server...")
+    client_socket = socket(AF_INET, SOCK_DGRAM)
+    # TODO: 3-way handshake
+    # Aviso que me quiero conectar
+    client_socket.sendto("Hola".encode(), (host, port))
+    # Acknowledge la conexión
+    data, _ = client_socket.recvfrom(1024)
+    print(f"Server answered: %s", data)
+        
+    # Envió el mensaje
     data = f"Sending file {file_name}".encode()
     package = RDTPackage(11, data)
-    
-    clientSocket = socket(AF_INET, SOCK_DGRAM)
-    clientSocket.sendto(package.get_pkg(), (host, port))
+    client_socket.sendto(package.get_pkg(), (host, port))
     print(f"Package sent: {package.get_pkg()}")
     
-    data, serverAddr = clientSocket.recvfrom(1024)
+    data, _ = client_socket.recvfrom(1024)
     print(f"Response received: {data.decode()}")
     
 
