@@ -1,6 +1,7 @@
 from socket import *
-from lib.utils import get_server_args
 import logging
+from lib.utils import get_server_args
+from lib.rdt_pkg import RDTPackage
 
 logger = logging.getLogger(__name__)
 
@@ -10,9 +11,9 @@ def start(ip, port):
     logger.info("Listening on %s:%d", ip, port)
 
     while True:
-        data, addr = sock.recvfrom(1024)
-        hex_data = " ".join(f"\\x{byte:02x}" for byte in data)
-        logger.info("Message received from %s: %s", addr, hex_data)
+        pkg, addr = sock.recvfrom(1024)
+        pkg: RDTPackage = RDTPackage.extract(pkg)
+        logger.info("Message received from %s: %s", addr, pkg)
         sock.sendto("ACK".encode(), addr)        
 
 def main():

@@ -12,8 +12,17 @@ class RDTPackage:
         self.data = data
         self.pkg = self._encode()
         
+    # Para debuggear
+    def __str__(self):
+        return f"""RDTPackage(          
+            seq_num={self.seq_num},   
+            checksum={self.checksum}, 
+            data={self.data}          
+        )"""
+        
     def _checksum(self):
-        return bytearray(16)
+        # Sumar de byte a byte y quedate con los primeros 16 bits, supongo que funca
+        return bytearray(2)
         
     def _encode(self):
         pkg = bytes()
@@ -27,8 +36,9 @@ class RDTPackage:
     
     @staticmethod
     def extract(pkg: bytes):
+        # TODO: manejo de errores
         seq_num = int.from_bytes(pkg[:4], 'big')
-        checksum = pkg[4:6]
+        checksum = pkg[4:6] # TODO: validar el checksum
         data = pkg[6:]
         
         return RDTPackage(seq_num, data)
