@@ -1,7 +1,21 @@
+import logging
 from argparse import ArgumentParser
+from lib.values import *
 
-SERVER_IP = "127.0.0.1"
-SERVER_PORT = 6000
+def set_logger(args, name):
+    logger = logging.getLogger(name)
+    if args.verbose:
+        level = logging.DEBUG
+    elif args.quiet:
+        level = logging.WARNING
+    else:
+        level = logging.INFO
+
+    logging.basicConfig(filename='server.log', level=level)
+    ch = logging.StreamHandler()
+    ch.setLevel(level)
+    logger.addHandler(ch)
+    return logger
 
 def get_server_args():
     parser = ArgumentParser(prog='start-server')

@@ -1,36 +1,17 @@
-from socket import *
+from lib.utils import set_logger
 from lib.utils import get_upload_args
-from lib.rdt_pkg import RDTPackage
-    
-def upload_file(host, port, file_name):
-    print("Connecting to the server...")
-    client_socket = socket(AF_INET, SOCK_DGRAM)
-    # TODO: 3-way handshake
-    # Aviso que me quiero conectar
-    client_socket.sendto("Hola".encode(), (host, port))
-    # Acknowledge la conexión
-    datagram, _ = client_socket.recvfrom(1024)
-    print(f"Server answered: %s", datagram)
-        
-    # Envío el mensaje
-    data = f"Sending file {file_name}".encode()
-    pkg = RDTPackage(11, data).pkg
-    
-    client_socket.sendto(pkg, (host, port))
-    print(f"Package sent: {pkg}")
-    
-    datagram, _ = client_socket.recvfrom(1024)
-    print(f"Response received: {datagram.decode()}")
-    
+from lib.client import Client
+from lib.values import *
 
 def main():
     try:
         args = get_upload_args()
-        upload_file(args.host, args.port, args.name)
+        logger = set_logger(args, __name__)
+        client = Client(args.host, args.port, UPLOAD_TYPE, logger)
+        client.start()
         
     except KeyboardInterrupt:
         print("\nClosing client...")
-        # TODO: liberar recursos
     
 if __name__ == "__main__":
     main()
