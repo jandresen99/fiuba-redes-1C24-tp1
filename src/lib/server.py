@@ -28,17 +28,17 @@ class Server:
             datagram, addr = self.socket.recvfrom(1024)
             port = addr[1]
             try:
-                message_queue = self.clients[port]
-                message_queue.put(datagram)
+                package_queue = self.clients[port]
+                package_queue.put(datagram)
 
             except:
-                message_queue = Queue()
-                message_queue.put(datagram)
-                self.clients[port] = message_queue
-                client = Thread(target=self.handle_message, args=(message_queue,))
+                package_queue = Queue()
+                package_queue.put(datagram)
+                self.clients[port] = package_queue
+                client = Thread(target=self.handle_package, args=(package_queue,))
                 client.start()
     
-    def handle_message(self, queue):
+    def handle_package(self, queue):
         try:
             encoded_pkg = queue.get(block=True, timeout=1)
             decoded_pkg = Package.decode_pkg(encoded_pkg)
