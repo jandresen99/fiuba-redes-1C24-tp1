@@ -24,6 +24,9 @@ class Client:
         self.handshake_to_server()
     
     def handshake_to_server(self):
+        # Primer mensaje solo tiene el SYN en 1 y si es de tipo download o upload
+        # El server contesta con un SYN 1 y el ACK
+        # El cliente envía un ACK con SYN 0 y la conexión queda establecida
         handshake_pkg = Package.handshake_pkg(self.type, self.protocol)
         self.send(handshake_pkg)
         self.logger.info("Sent handshake to server")

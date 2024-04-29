@@ -52,4 +52,4 @@ class Package:
     
     @classmethod
     def handshake_pkg(cls, type, protocol):
-        return Package(type, HELLO, len(protocol.name.encode()), "", protocol.name.encode()).encode_pkg()
+        return Package(type, SYN, len(protocol.name.encode()), "", protocol.name.encode()).encode_pkg()

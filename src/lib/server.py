@@ -25,18 +25,21 @@ class Server:
     
     def handle_connections(self):
         while True:
-            datagram, addr = self.socket.recvfrom(1024)
+            package, addr = self.socket.recvfrom(1024)
             port = addr[1]
-            try:
+            
+            if port in self.clients:
                 package_queue = self.clients[port]
-                package_queue.put(datagram)
-
-            except:
-                package_queue = Queue()
-                package_queue.put(datagram)
-                self.clients[port] = package_queue
-                client = Thread(target=self.handle_package, args=(package_queue,))
-                client.start()
+                package_queue.put(package)
+            else:
+                self.handle_new_client(port, package)
+                
+    def handle_new_client(self, port, datagram):
+        package_queue = Queue()
+        package_queue.put(datagram)
+        self.clients[port] = package_queue
+        client = Thread(target=self.handle_package, args=(package_queue,))
+        client.start()
     
     def handle_package(self, queue):
         try:
@@ -50,5 +53,8 @@ class Server:
             print("Ack Number:", decoded_pkg.ack_number)
             print("Data:", decoded_pkg.data)
         except Exception as e:
-            self.logger.error(f"Errorrrrrrrrrr: {e}")
+            self.logger.error(f"Error handling package: {e}")
             raise e
+        
+    def stop(self):
+        self.socket.close()
