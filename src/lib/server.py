@@ -1,49 +1,83 @@
 from socket import *
 from threading import Thread
 from logging import Logger
-
-from lib.rdt_pkg import RDTPackage
+from queue import Queue
+from lib.package import Package
+from lib.values import *
+from lib.stop_and_wait import StopAndWaitProtocol
 
 class Server:
     def __init__(self, ip, port, logger: Logger):
-        self.sock = socket(AF_INET, SOCK_DGRAM)
-        self.sock.bind((ip, port))
+        self.ip = ip
+        self.port = port
         self.logger = logger
         
-        self.clients = set()
+        self.clients = {} # Map (port, queue)
+        self.protocols = {} # Map (port, protocol)
         
-        self.logger.info("Listening on %s:%d", ip, port)
-
     def start(self):
-        # Este thread es el que se encarga de escuchar mensajes recibidos constantemente.
-        # Es el único punto de entrada de mensajes del server
-        # Parece que no tiene mucho sentido crear un socket UDP por cliente, buscarle
-        # un puerto a cada socket y handlear errores para eso. Suena bardo.
-        # Luego cada thread por cliente procesa el mensaje recibido
-        # Para ver manejo de clientes concurrentemente usando UDP:
-        # https://stackoverflow.com/questions/45904197/multiple-udp-sockets-and-multiple-clients
+        self.socket = socket(AF_INET, SOCK_DGRAM)
+        self.socket.bind((self.ip, self.port))
+        
+        self.logger.info("Listening on %s:%d", self.ip, self.port)
+        try:
+            self.handle_connections()
+        except Exception as e:
+            self.logger.error(f"Error: {e}")
+            raise e
+    
+    def handle_connections(self):
         while True:
-            datagram, addr = self.sock.recvfrom(1024)
-            # TODO: acá habría que hacer el 3-way handshake?
-            if addr not in self.clients:
-                self.logger.info(f"New client: %s", addr)
-                # Le aviso al cliente que escuché su conexión
-                print(f"[NEW] Enviando ACK a ", addr)
-                self.sock.sendto("ACK".encode(), addr)
-                self.clients.add(addr)
+            package, addr = self.socket.recvfrom(1024)
+            port = addr[1]
+            
+            if port in self.clients:
+                package_queue = self.clients[port]
+                package_queue.put(package)
             else:
-                self.logger.info(f"[OLD] Client: %s", addr)
-                print(f"[OLD] Enviando ACK a ", addr)
-                self.sock.sendto("ACK".encode(), addr)    
-                        
-                client_thread = Thread(target=self._handle_client, args=(datagram, addr))   
-                client_thread.start()
+                self.handle_new_client(port, package)
+                
+    def handle_new_client(self, port, datagram):
+        package_queue = Queue()
+        package_queue.put(datagram)
+        self.clients[port] = package_queue
+        client = Thread(target=self.handle_package, args=(port, package_queue))
+        client.start()
     
-    # Por ahora solo muestra lo que recivió
-    def _handle_client(self, datagram, addr):
-        pkg: RDTPackage = RDTPackage.extract(datagram)
-        self.logger.info("Message received from %s: %s", addr, pkg)
-        return
+    def handle_package(self, port, queue):
+        try:
+            # Recivo primer mensaje
+            encoded_pkg = queue.get(block=True, timeout=1)
+            decoded_pkg = Package.decode_pkg(encoded_pkg)
+            # debug
+            print(decoded_pkg)
+            print("Flags:", decoded_pkg.flags)
+            print("Data Length:", decoded_pkg.data_length)
+            print("File Name:", decoded_pkg.file_name)
+            print("Seq Number:", decoded_pkg.seq_number)
+            print("Ack Number:", decoded_pkg.ack_number)
+            print("Data:", decoded_pkg.data)
+            
+            if decoded_pkg.flags == SYN: # Primer mensaje    
+                self.three_way_handshake(decoded_pkg, port, queue)
+                # ACK back to client
+                
+        except Exception as e:
+            self.logger.error(f"Error handling package: {e}")
+            raise e
     
+    def three_way_handshake(self, pkg, port, queue):
+        # El primer mensaje tiene 
+        if pkg.data.decode() == 'sw':
+            self.protocols[port] = StopAndWaitProtocol()
+            print("Cliente usa stop and wait")
+        else:
+            print("No se reconoció el protocolo") 
+        
+        #self.acknowledge_connection()
+        
+    #def acknowledge_connection(self):
+        
+        
     def stop(self):
-        self.sock.close()
+        self.socket.close()
