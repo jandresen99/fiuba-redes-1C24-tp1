@@ -30,9 +30,17 @@ class Client:
         handshake_pkg = Package.handshake_pkg(self.type, self.protocol)
         self.send(handshake_pkg)
         self.logger.info("Sent handshake to server")
+        # Esperar respuesta
+        # datagram, _ = self.socket.recvfrom(BUFFER_SIZE)
+        # pkg = Package.decode_pkg(datagram)
+        # self.logger.info(f"Received data from server: {pkg}")
+        # Empezar download o upload
+        
+        
+        
     
     def send(self, package, address=None):
-        if address:
-            self.socket.sendto(package, address)
-        else:
-            self.socket.sendto(package, (self.ip, self.port))
+        if not address:
+            address = (self.ip, self.port)
+        
+        self.socket.sendto(package, address)
