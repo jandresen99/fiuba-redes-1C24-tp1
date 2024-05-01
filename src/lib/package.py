@@ -7,14 +7,26 @@ def add_padding(data: bytes, n: int):
     return data + b"\0" * k
 
 class Package:
-    def __init__(self, type, flags, data_length, file_name, data, seq_number=0, ack_number=0):
+    def __init__(self, type, flags, data_length, file_name, data: bytes, seq_number=0, ack_number=0):
         self.type = type
-        self.flags = flags
+        self.flags = flags # 8 bits, se lee como un nº asociado a un único flag
         self.data_length = data_length
         self.file_name = file_name
         self.seq_number = seq_number
         self.ack_number = ack_number
         self.data = data
+        
+    # Para debuggear
+    def __str__(self):
+        return f"""Package(
+            Type: {self.type},
+            Flags: {self.flags},
+            Data Length: {self.data_length},
+            File Name: {self.file_name},
+            Seq Number: {self.seq_number},
+            Ack Number: {self.ack_number},
+            Data: {self.data}          
+        )"""
     
     def encode_pkg(self):
         bytes_arr = b""
@@ -53,3 +65,4 @@ class Package:
     @classmethod
     def handshake_pkg(cls, type, protocol):
         return Package(type, SYN, len(protocol.name.encode()), "", protocol.name.encode()).encode_pkg()
+    

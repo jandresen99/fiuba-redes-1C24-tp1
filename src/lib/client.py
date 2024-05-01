@@ -31,9 +31,11 @@ class Client:
         self.send(handshake_pkg)
         self.logger.info("Sent handshake to server")
         # Esperar respuesta
-        # datagram, _ = self.socket.recvfrom(BUFFER_SIZE)
-        # pkg = Package.decode_pkg(datagram)
-        # self.logger.info(f"Received data from server: {pkg}")
+        # TODO: hay que hacer un try-catch para que no explote cuando hay un
+        # timeout en el recv
+        datagram, _ = self.socket.recvfrom(BUFFER_SIZE)
+        pkg = Package.decode_pkg(datagram)
+        self.logger.debug(f"Received data from server: {pkg}")
         # Empezar download o upload
         
         
