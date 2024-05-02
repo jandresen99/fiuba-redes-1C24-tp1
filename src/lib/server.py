@@ -2,11 +2,17 @@ from socket import socket, AF_INET, SOCK_DGRAM
 from threading import Thread
 from logging import Logger
 from queue import Queue
+
 from lib.package import Package
 from lib.values import *
-from lib.stop_and_wait import StopAndWaitProtocol
+from lib.stop_and_wait import StopAndWait
 
 class Server:
+    """Se encarga de recibir todos los mensajes, instanciar nuevos clientes, 
+       manejo de threads, pushear los mensajes a los clientes indicados (multiplexar)
+       manejo de archivos y cerrar todo de forma ordenada.       
+    """
+    
     def __init__(self, ip, port, logger: Logger):
         self.ip = ip
         self.port = port
@@ -15,6 +21,8 @@ class Server:
         self.clients = {} # Map (addr, queue)
         self.protocols = {} # Map (addr, protocol)
         self.clients_sockets = {} # Map (addr, socket)
+        
+        self.threads = {} # Map (addr, thread)
         
     def start(self):
         self.socket = socket(AF_INET, SOCK_DGRAM)
@@ -33,23 +41,40 @@ class Server:
            dirige los mensajes a los clientes correspondientes"""
            
         while True:
-            package, addr = self.socket.recvfrom(1024)
+            print("Server esperando paquete")
+            datagram, addr = self.socket.recvfrom(1024)
             
-            self.logger.debug(f"Arrived: {Package.decode_pkg(package)}, from {addr}")
-            
+            self.logger.debug(f"Arrived: {Package.decode_pkg(datagram)}, from {addr}")
+            # Nueva versión
             if addr in self.clients:
-                package_queue = self.clients[addr]
-                package_queue.put(package)
+                self.clients[addr].push(datagram)
             else:
-                self.handle_new_client(addr, package)
+                new_client = StopAndWait(addr, self.logger)
+                self.clients[addr] = new_client
+                
+                new_client.push(datagram)
+                thread = Thread(target=self.start_new_client, args=(addr))
+                self.threads[addr] = thread
+                
+            # Vieja versión
+            # if addr in self.clients:
+            #     package_queue = self.clients[addr]
+            #     package_queue.put(datagram)
+            # else:
+            #     self.handle_new_client(addr, datagram)
+                
+    def start_new_client(self, addr):
+        """Solo para el tema de los threads"""
+        self.clients[addr].start()
                 
     def handle_new_client(self, addr, datagram):
+        # TODO: acá es donde vas a instanciar un Stop&Wait o SelectiveRepeat
         # TODO: queda medio rara esta parte
-        package_queue = Queue()
-        package_queue.put(datagram)
-        self.clients[addr] = package_queue
+        datagram_queue = Queue()
+        datagram_queue.put(datagram)
+        self.clients[addr] = datagram_queue
         
-        client = Thread(target=self.begin_connection, args=(addr, package_queue))
+        client = Thread(target=self.begin_connection, args=(addr, datagram_queue))
         client.start()
     
     def begin_connection(self, addr, queue):
@@ -73,7 +98,7 @@ class Server:
     def three_way_handshake(self, pkg: Package, addr, queue):
         # El primer mensaje tiene el protocolo a usar 
         if pkg.data.decode() == 'sw':
-            self.protocols[addr] = StopAndWaitProtocol()
+            self.protocols[addr] = StopAndWait(addr, self.logger)
             print("Cliente usa stop and wait")
         else:
             raise ValueError("No se reconoció el protocolo") 
@@ -111,3 +136,7 @@ class Server:
         
     def stop(self):
         self.socket.close()
+
+# El server solo se encarga de recibir mensajes, crear conexiones con clientes y pushear
+# los mensajes en las queues de cada uno. Nada de handshake y eso en el server
+# Esas conexiones las encapsulamos en clases Protocolo.

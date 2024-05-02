@@ -1,7 +1,7 @@
 from logging import Logger
 from lib.package import Package
 from lib.values import *
-from lib.stop_and_wait import StopAndWaitProtocol
+from lib.stop_and_wait import StopAndWait
 from socket import socket, AF_INET, SOCK_DGRAM
 
 class Client:
@@ -10,7 +10,7 @@ class Client:
         self.port = port
         self.server_address = None
         self.logger = logger
-        self.protocol = StopAndWaitProtocol()
+        self.protocol = StopAndWait((ip, port), logger)
 
         if type == UPLOAD_TYPE or type == DOWNLOAD_TYPE:
             self.type = type
