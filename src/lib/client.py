@@ -51,9 +51,12 @@ class Client:
         self.logger.debug("Envío el pedido al server")
         self.send(pkg)
         
+        self.start_data_transfer()
         
+    def start_data_transfer(self):
+        print("Esperando paquetes del servidor...")
+        # Es lo mismo que hace el servidor pero del lado del cliente
         
-    
     def send(self, package: bytes, address=None):
         if not address:
             address = (self.ip, self.port)

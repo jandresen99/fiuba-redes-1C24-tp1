@@ -1,4 +1,4 @@
-from socket import *
+from socket import socket, AF_INET, SOCK_DGRAM
 from threading import Thread
 from logging import Logger
 from queue import Queue
@@ -49,10 +49,10 @@ class Server:
         package_queue.put(datagram)
         self.clients[addr] = package_queue
         
-        client = Thread(target=self.handle_packages, args=(addr, package_queue))
+        client = Thread(target=self.begin_connection, args=(addr, package_queue))
         client.start()
     
-    def handle_packages(self, addr, queue):
+    def begin_connection(self, addr, queue):
         data_transfer_started = False
         
         while not data_transfer_started:
@@ -100,12 +100,12 @@ class Server:
         self.clients_sockets[addr[1]] = client_socket
         
     def start_data_transfer(self, addr, pkg: Package):
-        # TODO: fijarse si es un download o upload y hacer el loop
         self.logger.debug(f"Comenzando a transferir datos con: {addr}")
+        self.logger.debug(f"Me debería haber llegado tipo de transferencia y nombre de archivo")
+        # TODO: fijarse si es un download o upload y hacer el loop
         # TODO: acá es donde entra en un while "se sigue transfiriendo data",
         # escucho de la queue y voy procesando.
         # TODO: esta parte va a depender del protocolo que eligió el cliente
-        
         # TODO: hacer un catch para el queue.Empty. Tenés que contar la cantidad
         # de timeouts y dar de baja sino
         
