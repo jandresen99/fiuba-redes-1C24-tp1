@@ -2,7 +2,7 @@ from logging import Logger
 from lib.package import Package
 from lib.values import *
 from lib.stop_and_wait import StopAndWaitProtocol
-import socket
+from socket import socket, AF_INET, SOCK_DGRAM
 
 class Client:
     def __init__(self, ip, port, type, logger: Logger):
@@ -18,7 +18,7 @@ class Client:
             self.logger.error(f"Error: invalid type")
     
     def start(self):
-        self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.socket = socket(AF_INET, SOCK_DGRAM)
         self.socket.settimeout(1)
 
         self.handshake_to_server()
@@ -31,15 +31,30 @@ class Client:
         self.send(handshake_pkg)
         self.logger.info("Sent handshake to server")
         # Esperar respuesta
-        # datagram, _ = self.socket.recvfrom(BUFFER_SIZE)
-        # pkg = Package.decode_pkg(datagram)
-        # self.logger.info(f"Received data from server: {pkg}")
+        # TODO: hay que hacer un try-catch para que no explote cuando hay un
+        # timeout en el recv
+        datagram, _ = self.socket.recvfrom(BUFFER_SIZE)
+        received_pkg = Package.decode_pkg(datagram)
+        self.logger.debug(f"Received data from server: {received_pkg}")
         # Empezar download o upload
+        message = 'Quiero descargar o subir algo ni idea.'.encode()
+        pkg = Package(
+            type=1,  
+            flags=START_TRANSFER, 
+            data_length=len(message),
+            file_name='',
+            data=message,
+            seq_number=1, # TODO: un seq_number global para ir sumando
+            ack_number= received_pkg.ack_number + 1
+        ).encode_pkg()
+        
+        self.logger.debug("Envío el pedido al server")
+        self.send(pkg)
         
         
         
     
-    def send(self, package, address=None):
+    def send(self, package: bytes, address=None):
         if not address:
             address = (self.ip, self.port)
         
