@@ -11,7 +11,7 @@ class Package:
         self.type = type
         self.flags = flags # 8 bits, se lee como un nº asociado a un único flag
         self.data_length = data_length
-        self.file_name = file_name
+        self.file_name = file_name # TODO: para que mandar todo el tiempo el filename?
         self.seq_number = seq_number
         self.ack_number = ack_number
         self.data = data
@@ -28,7 +28,7 @@ class Package:
             Data: {self.data}          
         )"""
     
-    def encode_pkg(self):
+    def encode_pkg(self) -> bytes:
         bytes_arr = b""
         bytes_arr += self.type.to_bytes(1, byteorder='big')
         bytes_arr += self.flags.to_bytes(1, byteorder='big')
