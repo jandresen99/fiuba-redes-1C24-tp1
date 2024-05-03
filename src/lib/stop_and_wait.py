@@ -37,17 +37,18 @@ class StopAndWait():
             # TODO: por ahora esta solo es la lógica del lado del server
             # Si soy el primero que recibe el mensaje => ack_num es None (o podria ser -1)
             if pkg.flags == SYN: 
-                print("Primer mensaje del cliente")
+                print("Recibí un SYN: primer mensaje del cliente")
                 self.ack_num = pkg.seq_number + 1
                 self.acknowledge_connection()
             
             if pkg.flags == START_TRANSFER:
-                print("Cliente quiere transferir datos")
+                print("Recibí un start_transfer: cliente quiere transferir datos")
                 self.start_data_transfer(pkg)
                 
                 
                 
     def acknowledge_connection(self):
+        print("Le mando SYNACK al cliente")
         pkg = Package(
             type=1, # TODO: creo que el type puede ser un flag y listo
             flags=SYN, 
@@ -61,8 +62,10 @@ class StopAndWait():
         self.socket.sendto(pkg, self.addr)
         
     def start_data_transfer(self, pkg: Package):
-        self.logger.debug(f"Comenzando a transferir datos con: {self.addr}")
-        self.logger.debug(f"Me debería haber llegado tipo de transferencia y nombre de archivo")
+        print(f"Comenzando a transferir datos con: {self.addr}")
+        print(f"Me debería haber llegado tipo de transferencia y nombre de archivo")
+        # self.logger.debug(f"Comenzando a transferir datos con: {self.addr}")
+        # self.logger.debug(f"Me debería haber llegado tipo de transferencia y nombre de archivo")
         # TODO: fijarse si es un download o upload y hacer el loop
         # TODO: acá es donde entra en un while "se sigue transfiriendo data",
         # escucho de la queue y voy procesando.
