@@ -1,8 +1,10 @@
 from logging import Logger
 from lib.package import Package
 from lib.values import *
-from lib.stop_and_wait import StopAndWaitProtocol
+from lib.stop_and_wait import StopAndWait
 from socket import socket, AF_INET, SOCK_DGRAM
+
+import time # TODO: sacar esto
 
 class Client:
     def __init__(self, ip, port, type, logger: Logger):
@@ -10,7 +12,7 @@ class Client:
         self.port = port
         self.server_address = None
         self.logger = logger
-        self.protocol = StopAndWaitProtocol()
+        self.protocol = StopAndWait((ip, port), logger)
 
         if type == UPLOAD_TYPE or type == DOWNLOAD_TYPE:
             self.type = type
@@ -55,7 +57,28 @@ class Client:
         
     def start_data_transfer(self):
         print("Esperando paquetes del servidor...")
+        seq_number = 2
         # Es lo mismo que hace el servidor pero del lado del cliente
+        # TODO: por ahora esta función solo va a enviar paquetes a mil sin nada adentro
+        while True:
+            time.sleep(0.75)
+            message = f"Package {seq_number}".encode()
+            
+            pkg = Package(
+                type=1,  
+                flags=NO_FLAG, 
+                data_length=len(message),
+                file_name='',
+                data=message,
+                seq_number=seq_number,
+                ack_number=0 # TODO: por ahora no le da pelota a esto
+            ).encode_pkg()
+            
+            self.send(pkg)
+            
+            seq_number += 1
+            
+            
         
     def send(self, package: bytes, address=None):
         if not address:
