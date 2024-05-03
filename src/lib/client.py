@@ -44,7 +44,7 @@ class Client:
             data_length=len(message),
             file_name='',
             data=message,
-            seq_number=1, # TODO: un seq_number global para ir sumando
+            seq_number=2, # TODO: un seq_number global para ir sumando
             ack_number= received_pkg.ack_number + 1
         ).encode_pkg()
         

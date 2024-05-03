@@ -33,7 +33,12 @@ class StopAndWait():
             pkg = Package.decode_pkg(datagram)
             
             self.logger.debug(f"Client {self.addr} received: {pkg}")
-         
+            
+            # Checkeo que recibí el paquete que esperaba
+            if self.ack_num != -1 and pkg.seq_number != self.ack_num:
+                self.handle_unordered_package(pkg.seq_number)
+                continue # Dropeo el paquete y vuelvo a esperar mensajes
+        
             # TODO: por ahora esta solo es la lógica del lado del server
             # Si soy el primero que recibe el mensaje => ack_num es None (o podria ser -1)
             if pkg.flags == SYN: 
@@ -43,15 +48,14 @@ class StopAndWait():
             
             if pkg.flags == START_TRANSFER:
                 print("Recibí un start_transfer: cliente quiere transferir datos")
+                self.ack_num = pkg.seq_number + 1
                 self.start_data_transfer(pkg)
-                
-                
-                
+            
     def acknowledge_connection(self):
         print("Le mando SYNACK al cliente")
         pkg = Package(
             type=1, # TODO: creo que el type puede ser un flag y listo
-            flags=SYN, 
+            flags=SYN,
             data_length=0,
             file_name='', # TODO: sacar esto
             data=''.encode(),
@@ -73,5 +77,25 @@ class StopAndWait():
         # TODO: hacer un catch para el queue.Empty. Tenés que contar la cantidad
         # de timeouts y dar de baja sino
             
+    def handle_unordered_package(self, seq_number):
+        """En stop and wait el paquete se dropea y reenvio el ack"""
+        print(
+            f"Se esperaba recibir el paquete con seq_num {self.ack_num} "
+            f"pero se recibió el paquete {seq_number}.\n"
+            f"Vuelvo a enviar ACK = {self.ack_num}"
+        )
+        
+        pkg = Package(
+            type=1, # TODO: creo que el type puede ser un flag y listo
+            flags=NO_FLAG,
+            data_length=0,
+            file_name='', # TODO: sacar esto
+            data=''.encode(),
+            seq_number= 0,
+            ack_number= self.ack_num
+        ).encode_pkg()
+        
+        self.socket.sendto(pkg, self.addr)
+        
     def push(self, datagram: bytes):    
         self.datagram_queue.put(datagram)
