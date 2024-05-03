@@ -68,14 +68,10 @@ class StopAndWait():
     def start_data_transfer(self, pkg: Package):
         print(f"Comenzando a transferir datos con: {self.addr}")
         print(f"Me debería haber llegado tipo de transferencia y nombre de archivo")
-        # self.logger.debug(f"Comenzando a transferir datos con: {self.addr}")
-        # self.logger.debug(f"Me debería haber llegado tipo de transferencia y nombre de archivo")
-        # TODO: fijarse si es un download o upload y hacer el loop
-        # TODO: acá es donde entra en un while "se sigue transfiriendo data",
-        # escucho de la queue y voy procesando.
-        # TODO: esta parte va a depender del protocolo que eligió el cliente
-        # TODO: hacer un catch para el queue.Empty. Tenés que contar la cantidad
-        # de timeouts y dar de baja sino
+        
+        if pkg.type == UPLOAD_TYPE: # El server va a recibir datos para descargar
+            # TODO: extraer el nombre de archivo y lo que sea de pkg
+            self.download_file()
             
     def handle_unordered_package(self, seq_number):
         """En stop and wait el paquete se dropea y reenvio el ack"""
@@ -99,3 +95,18 @@ class StopAndWait():
         
     def push(self, datagram: bytes):    
         self.datagram_queue.put(datagram)
+        
+    def download_file(self):
+        # TODO: este pasa a convertirse en el loop principal. El pkg recibido
+        # es el del flag START_TRANSFER y tiene que tener como datos el nombre
+        # del archivo, donde lo quiere guardar etc. Eso se hace una única vez
+        # acá y ya queda guardado => en ese paquete el cliente manda esa info
+        # dentro de data
+        
+        # TODO: esta va a ser la misma función que usa el cliente cuando quiera
+        # descargarse algo
+        while True:
+            datagram = self.datagram_queue.get(block=True, timeout=1)
+            pkg = Package.decode_pkg(datagram)
+            
+            print(f"From client {self.addr} received: {pkg.data.decode()}")

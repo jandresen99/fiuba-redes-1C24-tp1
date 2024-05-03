@@ -4,6 +4,8 @@ from lib.values import *
 from lib.stop_and_wait import StopAndWait
 from socket import socket, AF_INET, SOCK_DGRAM
 
+import time # TODO: sacar esto
+
 class Client:
     def __init__(self, ip, port, type, logger: Logger):
         self.ip = ip
@@ -44,7 +46,7 @@ class Client:
             data_length=len(message),
             file_name='',
             data=message,
-            seq_number=2, # TODO: un seq_number global para ir sumando
+            seq_number=1, # TODO: un seq_number global para ir sumando
             ack_number= received_pkg.ack_number + 1
         ).encode_pkg()
         
@@ -55,7 +57,28 @@ class Client:
         
     def start_data_transfer(self):
         print("Esperando paquetes del servidor...")
+        seq_number = 2
         # Es lo mismo que hace el servidor pero del lado del cliente
+        # TODO: por ahora esta función solo va a enviar paquetes a mil sin nada adentro
+        while True:
+            time.sleep(0.75)
+            message = f"Package {seq_number}".encode()
+            
+            pkg = Package(
+                type=1,  
+                flags=NO_FLAG, 
+                data_length=len(message),
+                file_name='',
+                data=message,
+                seq_number=seq_number,
+                ack_number=0 # TODO: por ahora no le da pelota a esto
+            ).encode_pkg()
+            
+            self.send(pkg)
+            
+            seq_number += 1
+            
+            
         
     def send(self, package: bytes, address=None):
         if not address:
