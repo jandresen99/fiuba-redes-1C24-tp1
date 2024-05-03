@@ -2,6 +2,7 @@ from socket import socket, AF_INET, SOCK_DGRAM
 from threading import Thread
 from logging import Logger
 from queue import Queue
+import queue
 
 from lib.package import Package
 from lib.values import *
@@ -19,6 +20,7 @@ class Server:
         self.logger = logger
         # TODO: hacer clase ClientServer o Connection o algo así que guarde queue, protocol y socket
         self.clients = {} # Map (addr, queue)
+        # TODO: estos dos maps se van
         self.protocols = {} # Map (addr, protocol)
         self.clients_sockets = {} # Map (addr, socket)
         
@@ -41,20 +43,21 @@ class Server:
            dirige los mensajes a los clientes correspondientes"""
            
         while True:
-            print("Server esperando paquete")
             datagram, addr = self.socket.recvfrom(1024)
             
-            self.logger.debug(f"Arrived: {Package.decode_pkg(datagram)}, from {addr}")
+            # self.logger.debug(f"Arrived: {Package.decode_pkg(datagram)}, from {addr}")
             # Nueva versión
             if addr in self.clients:
                 self.clients[addr].push(datagram)
             else:
+                print("Nuevo cliente")
                 new_client = StopAndWait(addr, self.logger)
+                new_client.push(datagram)
                 self.clients[addr] = new_client
                 
-                new_client.push(datagram)
-                thread = Thread(target=self.start_new_client, args=(addr))
+                thread = Thread(target=self.start_new_client, args=(addr,))
                 self.threads[addr] = thread
+                thread.start()
                 
             # Vieja versión
             # if addr in self.clients:
@@ -64,8 +67,11 @@ class Server:
             #     self.handle_new_client(addr, datagram)
                 
     def start_new_client(self, addr):
-        """Solo para el tema de los threads"""
-        self.clients[addr].start()
+        """Solo para definir una función para que empiezen los threads los threads"""
+        try:
+            self.clients[addr].start()
+        except queue.Empty: # TODO: deberias lanzar una excepcion cuando se pasan los tries
+            print(f"Se perdió la conexión con el cliente {addr}")
                 
     def handle_new_client(self, addr, datagram):
         # TODO: acá es donde vas a instanciar un Stop&Wait o SelectiveRepeat
