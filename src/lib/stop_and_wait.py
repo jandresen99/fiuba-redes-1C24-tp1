@@ -71,7 +71,7 @@ class StopAndWait():
         
         if pkg.type == UPLOAD_TYPE: # El server va a recibir datos para descargar
             # TODO: extraer el nombre de archivo y lo que sea de pkg
-            self.download_file()
+            self.receive_file()
             
     def handle_unordered_package(self, seq_number):
         """En stop and wait el paquete se dropea y reenvio el ack"""
@@ -96,7 +96,7 @@ class StopAndWait():
     def push(self, datagram: bytes):    
         self.datagram_queue.put(datagram)
         
-    def download_file(self):
+    def receive_file(self):
         # TODO: este pasa a convertirse en el loop principal. El pkg recibido
         # es el del flag START_TRANSFER y tiene que tener como datos el nombre
         # del archivo, donde lo quiere guardar etc. Eso se hace una única vez
