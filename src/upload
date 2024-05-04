@@ -9,6 +9,7 @@ def main():
         logger = set_logger(args, __name__)
         client = Client(args.host, args.port, UPLOAD_TYPE, logger)
         client.start()
+        client.upload(args.src, args.name)
         
     except KeyboardInterrupt:
         print("\nClosing client...")

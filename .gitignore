@@ -1,5 +1,6 @@
 src/server.log
 server.log
+test.txt
 .DS_Store
 
 __pycache__/

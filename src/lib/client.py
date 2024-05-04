@@ -5,6 +5,7 @@ from lib.stop_and_wait import StopAndWait
 from socket import socket, AF_INET, SOCK_DGRAM
 
 import time # TODO: sacar esto
+import os
 
 class Client:
     def __init__(self, ip, port, type, logger: Logger):
@@ -52,33 +53,41 @@ class Client:
         
         self.logger.debug("Envío el pedido al server")
         self.send(pkg)
-        
-        self.start_data_transfer()
-        
-    def start_data_transfer(self):
-        print("Esperando paquetes del servidor...")
+
+    def upload(self, file_path, file_name):
+        print("Preparando el envio del archivo...")
+        print("File Path:", file_path)
+        print("File Path:", file_name)
+
+        print("Comprobando que el archivo exista...")
+        if not os.path.exists(file_path):
+            raise FileNotFoundError(f"El archivo '{file_path}' no existe")
+        else:
+            file_size = os.path.getsize(file_path)
+            if file_size == 0:
+                raise ValueError(f"El archivo tamaño del archivo '{file_path}' es cero")
+
+                
+        file = open(file_path, "rb") # rb es para leer en binario
+
+        data = file.read()
+
         seq_number = 2
         # Es lo mismo que hace el servidor pero del lado del cliente
         # TODO: por ahora esta función solo va a enviar paquetes a mil sin nada adentro
-        while True:
-            time.sleep(0.75)
-            message = f"Package {seq_number}".encode()
+        time.sleep(0.75)
             
-            pkg = Package(
-                type=1,  
-                flags=NO_FLAG, 
-                data_length=len(message),
-                file_name='',
-                data=message,
-                seq_number=seq_number,
-                ack_number=0 # TODO: por ahora no le da pelota a esto
-            ).encode_pkg()
-            
-            self.send(pkg)
-            
-            seq_number += 1
-            
-            
+        pkg = Package(
+            type=1,  
+            flags=NO_FLAG, 
+            data_length=len(data),
+            file_name=file_name,
+            data=data,
+            seq_number=seq_number,
+            ack_number=0 # TODO: por ahora no le da pelota a esto
+        ).encode_pkg()
+        
+        self.send(pkg)         
         
     def send(self, package: bytes, address=None):
         if not address:

@@ -110,3 +110,7 @@ class StopAndWait():
             pkg = Package.decode_pkg(datagram)
             
             print(f"From client {self.addr} received: {pkg.data.decode()}")
+
+            print(pkg.type, pkg.flags, pkg.data_length, pkg.file_name, pkg.data, pkg.seq_number, pkg.ack_number)
+
+
