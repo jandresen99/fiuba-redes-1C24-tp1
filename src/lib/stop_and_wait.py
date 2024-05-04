@@ -3,19 +3,21 @@ from queue  import Queue
 
 from lib.package import Package
 from lib.values import *
+import time # TODO: sacar esto
 
 class StopAndWait():
     """ Clase que encapsula toda la comunicación: recursos utilizados, estado de
         la comunicación, etc.
     """
     
-    def __init__(self, addr, logger):
+    def __init__(self, addr, logger, storage):
         # TODO: no se si se puede usar un socket concurrentemente para enviar mensajes
         # => creo uno nuevo. Puede ser que se pueda usar el mismo para todas las conexiones
         # Recursos para la comunicación
         self.socket = socket(AF_INET, SOCK_DGRAM)
         self.datagram_queue = Queue()
         self.addr = addr
+        self.storage = storage
         
         self.name = STOP_AND_WAIT
         
@@ -65,13 +67,15 @@ class StopAndWait():
         
         self.socket.sendto(pkg, self.addr)
         
-    def start_data_transfer(self, pkg: Package):
-        print(f"Comenzando a transferir datos con: {self.addr}")
-        print(f"Me debería haber llegado tipo de transferencia y nombre de archivo")
+    def start_data_transfer(self, pkg):
         
         if pkg.type == UPLOAD_TYPE: # El server va a recibir datos para descargar
-            # TODO: extraer el nombre de archivo y lo que sea de pkg
-            self.download_file()
+            print(f"Comenzando a recibir datos con: {self.addr}")
+            self.receive_file()
+        
+        if pkg.type == DOWNLOAD_TYPE: # El server va a enviar datos al cliente
+            print(f"Comenzando a transferir datos con: {self.addr}")
+            self.send_file(pkg)
             
     def handle_unordered_package(self, seq_number):
         """En stop and wait el paquete se dropea y reenvio el ack"""
@@ -95,8 +99,17 @@ class StopAndWait():
         
     def push(self, datagram: bytes):    
         self.datagram_queue.put(datagram)
+    
+    def send_file(self, pkg): 
+        time.sleep(0.75)
+
+        self.socket.sendto(pkg.encode_pkg(), self.addr)
+    
+    def set_socket(self, new_socket):
+        self.socket = new_socket
+
         
-    def download_file(self):
+    def receive_file(self):
         # TODO: este pasa a convertirse en el loop principal. El pkg recibido
         # es el del flag START_TRANSFER y tiene que tener como datos el nombre
         # del archivo, donde lo quiere guardar etc. Eso se hace una única vez
@@ -110,3 +123,11 @@ class StopAndWait():
             pkg = Package.decode_pkg(datagram)
             
             print(f"From client {self.addr} received: {pkg.data.decode()}")
+
+            print(pkg.type, pkg.flags, pkg.data_length, pkg.file_name, pkg.data, pkg.seq_number, pkg.ack_number)
+
+            print("Voy a guardar el archivo")
+            file = open(self.storage + "/" + pkg.file_name, "wb")
+            file.write(pkg.data)
+
+            print("Lo guarde")
