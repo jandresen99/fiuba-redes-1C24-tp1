@@ -3,6 +3,7 @@ from queue  import Queue
 
 from lib.package import Package
 from lib.values import *
+import time # TODO: sacar esto
 
 class StopAndWait():
     """ Clase que encapsula toda la comunicación: recursos utilizados, estado de
@@ -65,13 +66,17 @@ class StopAndWait():
         
         self.socket.sendto(pkg, self.addr)
         
-    def start_data_transfer(self, pkg: Package):
+    def start_data_transfer(self, pkg):
         print(f"Comenzando a transferir datos con: {self.addr}")
         print(f"Me debería haber llegado tipo de transferencia y nombre de archivo")
         
         if pkg.type == UPLOAD_TYPE: # El server va a recibir datos para descargar
             # TODO: extraer el nombre de archivo y lo que sea de pkg
             self.receive_file()
+        
+        if pkg.type == DOWNLOAD_TYPE: # El server va a enviar datos al cliente
+            # TODO: extraer el nombre de archivo y lo que sea de pkg
+            self.send_file(pkg)
             
     def handle_unordered_package(self, seq_number):
         """En stop and wait el paquete se dropea y reenvio el ack"""
@@ -95,6 +100,12 @@ class StopAndWait():
         
     def push(self, datagram: bytes):    
         self.datagram_queue.put(datagram)
+    
+    def send_file(self, pkg):
+        time.sleep(0.75)
+                
+        self.socket.sendto(pkg.encode_pkg(), self.addr)
+
         
     def receive_file(self):
         # TODO: este pasa a convertirse en el loop principal. El pkg recibido

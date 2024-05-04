@@ -1,4 +1,5 @@
 import logging
+import os
 from argparse import ArgumentParser
 from lib.values import *
 
@@ -57,3 +58,22 @@ def get_download_args():
     parser.add_argument('-n', '--name', help='file name', metavar='FILENAME', required=True)
     
     return parser.parse_args()
+
+def prepare_file_for_transmission(file_path):
+        print("Preparando el envio del archivo...")
+        print("File Path:", file_path)
+
+        print("Comprobando que el archivo exista...")
+
+        if not os.path.exists(file_path):
+            raise FileNotFoundError(f"El archivo '{file_path}' no existe")
+        else:
+            file_size = os.path.getsize(file_path)
+            if file_size == 0:
+                raise ValueError(f"El archivo tamaño del archivo '{file_path}' es cero")
+        
+        file = open(file_path, "rb") # rb es para leer en binario
+
+        data = file.read()
+
+        return data
