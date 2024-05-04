@@ -4,5 +4,7 @@ test.txt
 .DS_Store
 src/stored_files
 src/stored_files/
+src/downloaded_files
+src/downloaded_files/
 
 __pycache__/

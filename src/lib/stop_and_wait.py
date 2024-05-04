@@ -10,13 +10,14 @@ class StopAndWait():
         la comunicación, etc.
     """
     
-    def __init__(self, addr, logger):
+    def __init__(self, addr, logger, storage):
         # TODO: no se si se puede usar un socket concurrentemente para enviar mensajes
         # => creo uno nuevo. Puede ser que se pueda usar el mismo para todas las conexiones
         # Recursos para la comunicación
         self.socket = socket(AF_INET, SOCK_DGRAM)
         self.datagram_queue = Queue()
         self.addr = addr
+        self.storage = storage
         
         self.name = STOP_AND_WAIT
         
@@ -99,10 +100,13 @@ class StopAndWait():
     def push(self, datagram: bytes):    
         self.datagram_queue.put(datagram)
     
-    def send_file(self, pkg):
+    def send_file(self, pkg): 
         time.sleep(0.75)
-                
+
         self.socket.sendto(pkg.encode_pkg(), self.addr)
+    
+    def set_socket(self, new_socket):
+        self.socket = new_socket
 
         
     def receive_file(self):
@@ -123,7 +127,7 @@ class StopAndWait():
             print(pkg.type, pkg.flags, pkg.data_length, pkg.file_name, pkg.data, pkg.seq_number, pkg.ack_number)
 
             print("Voy a guardar el archivo")
-            file = open(pkg.file_name, "wb")
+            file = open(self.storage + "/" + pkg.file_name, "wb")
             file.write(pkg.data)
 
             print("Lo guarde")

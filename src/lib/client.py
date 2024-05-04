@@ -7,12 +7,17 @@ from socket import socket, AF_INET, SOCK_DGRAM
 import os
 
 class Client:
-    def __init__(self, ip, port, type, logger: Logger):
+    def __init__(self, ip, port, type, logger: Logger, destination):
         self.ip = ip
         self.port = port
         self.server_address = None
         self.logger = logger
-        self.protocol = StopAndWait((ip, port), logger)
+        self.destination_path = destination # En el caso del UPLOAD, no se va a utilizar
+
+        if not os.path.isdir(self.destination_path):
+            os.makedirs(self.destination_path, exist_ok=True)
+
+        self.protocol = StopAndWait((ip, port), logger, self.destination_path)
 
         if type == UPLOAD_TYPE or type == DOWNLOAD_TYPE:
             self.type = type
@@ -22,6 +27,8 @@ class Client:
     def start(self):
         self.socket = socket(AF_INET, SOCK_DGRAM)
         self.socket.settimeout(1)
+
+        self.protocol.set_socket(self.socket)
 
         self.handshake_to_server()
     

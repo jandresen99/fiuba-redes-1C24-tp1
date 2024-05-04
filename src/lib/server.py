@@ -53,7 +53,7 @@ class Server:
             else:
                 print("Nuevo cliente")
                 # TODO: checkear si es stop and wait o SelectiveRepeat
-                new_client = StopAndWait(addr, self.logger)
+                new_client = StopAndWait(addr, self.logger, self.storage)
                 new_client.push(datagram)
                 self.clients[addr] = new_client
                 
