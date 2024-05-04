@@ -67,15 +67,13 @@ class StopAndWait():
         self.socket.sendto(pkg, self.addr)
         
     def start_data_transfer(self, pkg):
-        print(f"Comenzando a transferir datos con: {self.addr}")
-        print(f"Me debería haber llegado tipo de transferencia y nombre de archivo")
         
         if pkg.type == UPLOAD_TYPE: # El server va a recibir datos para descargar
-            # TODO: extraer el nombre de archivo y lo que sea de pkg
+            print(f"Comenzando a recibir datos con: {self.addr}")
             self.receive_file()
         
         if pkg.type == DOWNLOAD_TYPE: # El server va a enviar datos al cliente
-            # TODO: extraer el nombre de archivo y lo que sea de pkg
+            print(f"Comenzando a transferir datos con: {self.addr}")
             self.send_file(pkg)
             
     def handle_unordered_package(self, seq_number):
@@ -124,4 +122,8 @@ class StopAndWait():
 
             print(pkg.type, pkg.flags, pkg.data_length, pkg.file_name, pkg.data, pkg.seq_number, pkg.ack_number)
 
+            print("Voy a guardar el archivo")
+            file = open(pkg.file_name, "wb")
+            file.write(pkg.data)
 
+            print("Lo guarde")

@@ -2,5 +2,7 @@ src/server.log
 server.log
 test.txt
 .DS_Store
+src/stored_files
+src/stored_files/
 
 __pycache__/

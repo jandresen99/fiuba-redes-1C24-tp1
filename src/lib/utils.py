@@ -27,7 +27,7 @@ def get_server_args():
     
     parser.add_argument('-H', '--host', default=SERVER_IP, help='server IP address. Defaults to 127.0.0.1', metavar='ADDR')
     parser.add_argument('-p', '--port', type=int, default=SERVER_PORT, help='server port. Defaults to port 6000', metavar='PORT')
-    parser.add_argument('-s', '--storage', help='storage dir path', metavar='DIRPATH')
+    parser.add_argument('-s', '--storage', default=STORAGE_LOCATION, help='storage dir path', metavar='DIRPATH')
 
     return parser.parse_args()
 

@@ -2,6 +2,7 @@ from socket import socket, AF_INET, SOCK_DGRAM
 from threading import Thread
 from logging import Logger
 import queue
+import os
 
 from lib.values import *
 from lib.stop_and_wait import StopAndWait
@@ -12,10 +13,14 @@ class Server:
        manejo de archivos y cerrar todo de forma ordenada.       
     """
     
-    def __init__(self, ip, port, logger: Logger):
+    def __init__(self, ip, port, logger: Logger, storage):
         self.ip = ip
         self.port = port
         self.logger = logger
+        self.storage = storage
+
+        if not os.path.isdir(self.storage):
+            os.makedirs(self.storage, exist_ok=True)
         
         self.clients = {} # Map (addr, Protocol)        
         self.threads = {} # Map (addr, thread)
@@ -40,6 +45,8 @@ class Server:
             datagram, addr = self.socket.recvfrom(1024)
             
             # self.logger.debug(f"Arrived: {Package.decode_pkg(datagram)}, from {addr}")
+
+            print("Clients:", self.clients)
             
             if addr in self.clients:
                 self.clients[addr].push(datagram)
