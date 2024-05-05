@@ -18,8 +18,4 @@ NO_FLAG = 0
 SYN = 1
 START_TRANSFER = 2
 FIN = 3
-
-# class Flags(Enum):
-#     NO_FLAG = 0
-#     SYN = 1
-#     START_TRANSFER = 2
+ACK = 4

@@ -43,15 +43,12 @@ class Server:
            
         while True:
             datagram, addr = self.socket.recvfrom(1024)
-            #print (datagram)
-            # self.logger.debug(f"Arrived: {Package.decode_pkg(datagram)}, from {addr}")
-
-            print("Clients:", self.clients)
             
             if addr in self.clients:
+                self.logger.info(f"Old client: {addr}")
                 self.clients[addr].push(datagram)
             else:
-                print("Nuevo cliente")
+                self.logger.info(f"New client: {addr}")
                 # TODO: checkear si es stop and wait o SelectiveRepeat
                 new_client = StopAndWait(addr, self.logger, self.storage)
                 new_client.push(datagram)
@@ -66,7 +63,7 @@ class Server:
         try:
             self.clients[addr].start_server()
         except queue.Empty: # TODO: deberias lanzar una excepcion cuando se pasan los tries
-            print(f"Se perdió la conexión con el cliente {addr}")
+            self.logger.info(f"Lost connection with client: {addr}")
         
     def stop(self):
         self.socket.close()

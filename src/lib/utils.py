@@ -60,17 +60,12 @@ def get_download_args():
     return parser.parse_args()
 
 def prepare_file_for_transmission(file_path):
-        print("Preparando el envio del archivo...")
-        print("File Path:", file_path)
-
-        print("Comprobando que el archivo exista...")
-
         if not os.path.exists(file_path):
-            raise FileNotFoundError(f"El archivo '{file_path}' no existe")
+            raise FileNotFoundError(f"The file '{file_path}' does not existe")
         
         file_size = os.path.getsize(file_path)
         if file_size == 0:
-            raise ValueError(f"El archivo tamaño del archivo '{file_path}' es cero")
+            raise ValueError(f"The file size of '{file_path}' is zero")
         
         file = open(file_path, "rb") # rb es para leer en binario
 
