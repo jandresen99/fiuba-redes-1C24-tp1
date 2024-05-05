@@ -79,7 +79,6 @@ class StopAndWait():
             type=client_type,   
             flags=START_TRANSFER, 
             data_length=len(file_name),
-            file_name='',
             data=file_name.encode(),
             seq_number=self.seq_num,
             ack_number= received_pkg.ack_number + 1
@@ -108,10 +107,9 @@ class StopAndWait():
     def acknowledge_connection(self):
         print("Le mando SYNACK al cliente")
         pkg = Package(
-            type=1, # TODO: creo que el type puede ser un flag y listo
+            type=1,
             flags=SYN,
             data_length=0,
-            file_name='', # TODO: sacar esto
             data=''.encode(),
             seq_number= 0,
             ack_number= self.ack_num
@@ -132,7 +130,6 @@ class StopAndWait():
             type=1, # TODO: creo que el type puede ser un flag y listo
             flags=NO_FLAG,
             data_length=0,
-            file_name='', # TODO: sacar esto
             data=''.encode(),
             seq_number= 0,
             ack_number= self.ack_num
@@ -155,7 +152,6 @@ class StopAndWait():
             type=2,
             flags=NO_FLAG, 
             data_length=len(data),
-            file_name="test_send_file.txt",
             data=data,
             seq_number=self.seq_num,
             ack_number=0 # TODO: por ahora no le da pelota a esto
