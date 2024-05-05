@@ -7,10 +7,12 @@ def main():
         args = get_download_args()
         logger = set_logger(args, __name__)
         client = Client(args.host, args.port, DOWNLOAD_TYPE, logger, args.dst)
-        client.start()
+        client.start(args)
         
     except KeyboardInterrupt:
         print("\nClosing Client...")
     
 if __name__ == "__main__":
     main()
+
+

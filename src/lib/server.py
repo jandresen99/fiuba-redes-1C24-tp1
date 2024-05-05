@@ -43,7 +43,7 @@ class Server:
            
         while True:
             datagram, addr = self.socket.recvfrom(1024)
-            
+            #print (datagram)
             # self.logger.debug(f"Arrived: {Package.decode_pkg(datagram)}, from {addr}")
 
             print("Clients:", self.clients)
@@ -64,7 +64,7 @@ class Server:
     def start_new_client(self, addr):
         """Solo para definir una función para que empiezen los threads los threads"""
         try:
-            self.clients[addr].start()
+            self.clients[addr].start_server()
         except queue.Empty: # TODO: deberias lanzar una excepcion cuando se pasan los tries
             print(f"Se perdió la conexión con el cliente {addr}")
         
