@@ -143,36 +143,58 @@ class StopAndWait():
     
 
     def send_file(self, file_path):
-        data = prepare_file_for_transmission(file_path)
+        file, file_size = prepare_file_for_transmission(file_path)
 
-        #while True:
+        while file_size > 0:
+            print("File size remaining:", file_size)
+            data = file.read(DATA_SIZE)
+            self.seq_num += 1
+            data_length = len(data)
+
+            pkg = Package(
+                type=2,
+                flags=NO_FLAG, 
+                data_length=data_length,
+                data=data,
+                seq_number=self.seq_num,
+                ack_number=0 # TODO: por ahora no le da pelota a esto
+            )
+
+            self.socket.sendto(pkg.encode_pkg(), self.addr)
+
+            file_size -= data_length
+        
         self.seq_num += 1
 
         pkg = Package(
-            type=2,
-            flags=NO_FLAG, 
-            data_length=len(data),
-            data=data,
-            seq_number=self.seq_num,
-            ack_number=0 # TODO: por ahora no le da pelota a esto
-        )
+                type=2,
+                flags=FIN, 
+                data_length=0,
+                data=''.encode(),
+                seq_number=self.seq_num,
+                ack_number=0 # TODO: por ahora no le da pelota a esto
+            )
 
         self.socket.sendto(pkg.encode_pkg(), self.addr)
 
+        print("Mando FIN")
+
         
     def receive_file(self, destination_path, file_name):
-        while True:
+        keep_receiving = True
+        file = open(destination_path + "/" + file_name, "wb+")
+
+        while keep_receiving:
             datagram = self.datagram_queue.get(block=True, timeout=1)
             pkg = Package.decode_pkg(datagram)
-            
-            print(f"From client {self.addr} received: {pkg.data.decode()}")
 
-            # TODO: Chequear orden del paquete
-            # TODO: Esperar a tener todo el archivo
-            # TODO: Chequear por flag FIN para cortar la conexion
+            if pkg.flags == FIN:
+                keep_receiving = False
+            else:
+                print(f"From client {self.addr} received package # {pkg.seq_number}")
 
-            print("Voy a guardar el archivo")
-            file = open(destination_path + "/" + file_name, "wb")
-            file.write(pkg.data)
+                # TODO: Chequear orden del paquete
 
-            print("Lo guarde")
+                file.write(pkg.data)
+        
+        print("Archivo recibido!")

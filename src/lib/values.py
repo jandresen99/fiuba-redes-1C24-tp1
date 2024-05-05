@@ -3,7 +3,7 @@
 SERVER_IP = "127.0.0.1"
 SERVER_PORT = 6000
 BUFFER_SIZE = 4096
-DATA_SIZE = 3682
+DATA_SIZE = BUFFER_SIZE - 14
 STORAGE_LOCATION = "stored_files"
 DESTINATION_LOCATION = "downloaded_files"
 
@@ -17,6 +17,7 @@ DOWNLOAD_TYPE = 2
 NO_FLAG = 0
 SYN = 1
 START_TRANSFER = 2
+FIN = 3
 
 # class Flags(Enum):
 #     NO_FLAG = 0
