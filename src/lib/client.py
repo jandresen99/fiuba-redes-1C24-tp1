@@ -4,6 +4,7 @@ from lib.values import *
 from lib.stop_and_wait import StopAndWait
 from lib.utils import *
 from socket import socket, AF_INET, SOCK_DGRAM
+from threading import Thread
 import os
 from queue  import Queue
 
@@ -22,4 +23,9 @@ class Client:
     
     
     def start(self, args):
-        self.protocol.start_client(self.type, args)
+        thread = Thread(target=self.protocol.start_client, args=(self.type, args))
+        thread.start()
+        
+        while True:
+            datagram, _ = self.protocol.socket.recvfrom(BUFFER_SIZE)
+            self.protocol.push(datagram)

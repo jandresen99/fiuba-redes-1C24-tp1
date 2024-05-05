@@ -72,7 +72,7 @@ class StopAndWait():
         # Esperar respuesta
         # TODO: hay que hacer un try-catch para que no explote cuando hay un
         # timeout en el recv
-        datagram, _ = self.socket.recvfrom(BUFFER_SIZE)
+        datagram = self.datagram_queue.get(block=True, timeout=1)
         received_pkg = Package.decode_pkg(datagram)
         self.logger.info(f"Received data from server: {received_pkg}")
         file_name = args.name
@@ -101,12 +101,9 @@ class StopAndWait():
             if not os.path.isdir(destination_path):
                 os.makedirs(destination_path, exist_ok=True)
             
-            #while True:
-            datagram, _ = self.socket.recvfrom(BUFFER_SIZE)
-            self.push(datagram)
             self.receive_file(destination_path, file_name)
 
-            
+
     def acknowledge_connection(self):
         self.logger.info(f"Sending SYNACK to client {self.addr}")
         pkg = Package(
@@ -121,18 +118,25 @@ class StopAndWait():
         self.socket.sendto(pkg, self.addr)
     
 
-    def send_ack(self):
-        self.logger.info(f"Sending ACK to {self.addr}")
+    def send_ack(self, seq_number):
+        self.logger.info(f"Sending ACK {seq_number} to {self.addr}")
         pkg = Package(
             type=1,
             flags=ACK,
             data_length=0,
             data=''.encode(),
-            seq_number= self.seq_num,
-            ack_number=self.seq_num
+            seq_number= seq_number,
+            ack_number=seq_number
         ).encode_pkg()
         
         self.socket.sendto(pkg, self.addr)
+
+    def get_ack(self):
+        datagram = self.datagram_queue.get(block=True, timeout=1)
+        pkg = Package.decode_pkg(datagram)
+
+        if pkg.flags == ACK:
+            return pkg
     
 
     def handle_unordered_package(self, seq_number):
@@ -179,6 +183,11 @@ class StopAndWait():
             self.socket.sendto(pkg.encode_pkg(), self.addr)
 
             file_size -= data_length
+
+            ack_pkg = self.get_ack()
+            if ack_pkg.ack_number < self.seq_num:
+                self.logger.info(f"Duplicated ACK {ack_pkg.ack_number} while self.seq_num {self.seq_num} from {self.addr}")
+                raise Exception
         
         self.seq_num += 1
         self.ack_num += 1
@@ -209,7 +218,11 @@ class StopAndWait():
             else:
                 self.logger.info(f"Got seq_number {pkg.seq_number} from client {self.addr}")
 
-                self.send_ack()
+                if self.ack_num > pkg.seq_number + 1:
+                    self.logger.info(f"Wrong self.ack_num = {self.ack_num} and  pkg.seq_number + 1 = {pkg.seq_number + 1}")
+                    raise Exception
+
+                self.send_ack(pkg.seq_number)
 
                 file.write(pkg.data)
         

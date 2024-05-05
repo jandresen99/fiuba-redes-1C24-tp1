@@ -34,7 +34,6 @@ class Package:
         bytes_arr += self.seq_number.to_bytes(4, byteorder='big', signed=False)
         bytes_arr += self.ack_number.to_bytes(4, byteorder='big', signed=False)
 
-        # append data from position 1024 to 2048
         bytes_arr += add_padding(self.data, BUFFER_SIZE - len(bytes_arr))
 
         return bytes_arr

@@ -42,7 +42,7 @@ class Server:
            dirige los mensajes a los clientes correspondientes"""
            
         while True:
-            datagram, addr = self.socket.recvfrom(1024)
+            datagram, addr = self.socket.recvfrom(BUFFER_SIZE)
             
             if addr in self.clients:
                 self.logger.info(f"Old client: {addr}")
