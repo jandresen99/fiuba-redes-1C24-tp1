@@ -54,7 +54,7 @@ def get_download_args():
 
     parser.add_argument('-H', '--host', default=SERVER_IP, help='server IP address. Defaults to 127.0.0.1', metavar='ADDR')
     parser.add_argument('-p', '--port', type=int, default=SERVER_PORT, help='server port. Defaults to port 6000', metavar='PORT')
-    parser.add_argument('-d', '--dst', default=DESTINATION_LOCATION, help='destination file path', metavar='FILEPATH', required=True)
+    parser.add_argument('-d', '--dst', default=DESTINATION_LOCATION, help='destination file path', metavar='FILEPATH')
     parser.add_argument('-n', '--name', help='file name', metavar='FILENAME', required=True)
     
     return parser.parse_args()

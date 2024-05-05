@@ -1,9 +1,10 @@
 from socket import socket, AF_INET, SOCK_DGRAM
 from queue  import Queue
-
 from lib.package import Package
 from lib.values import *
+from lib.utils import *
 import time # TODO: sacar esto
+import os
 
 class StopAndWait():
     """ Clase que encapsula toda la comunicación: recursos utilizados, estado de
@@ -28,7 +29,7 @@ class StopAndWait():
         
         self.logger = logger
         
-    def start(self):
+    def start_server(self):
         """ Empieza a consumir paquetes"""
         while True:
             datagram = self.datagram_queue.get(block=True, timeout=1)
@@ -51,7 +52,58 @@ class StopAndWait():
             if pkg.flags == START_TRANSFER:
                 print("Recibí un start_transfer: cliente quiere transferir datos")
                 self.ack_num = pkg.seq_number + 1
-                self.start_data_transfer(pkg)
+
+                if pkg.type == UPLOAD_TYPE:
+                    self.receive_file(self.storage, pkg.data.decode())
+                
+                if pkg.type == DOWNLOAD_TYPE:
+                    self.send_file(self.storage + "/" + pkg.data.decode())
+    
+
+    def start_client(self, client_type, args):
+        # Primer mensaje solo tiene el SYN en 1 y si es de tipo download o upload
+        # El server contesta con un SYN 1 y el ACK
+        # El cliente envía un ACK con SYN 0 y la conexión queda establecida
+        handshake_pkg = Package.handshake_pkg(client_type, self)
+        self.socket.sendto(handshake_pkg, self.addr) 
+        
+        # Esperar respuesta
+        # TODO: hay que hacer un try-catch para que no explote cuando hay un
+        # timeout en el recv
+        datagram, _ = self.socket.recvfrom(BUFFER_SIZE)
+        received_pkg = Package.decode_pkg(datagram)
+        self.logger.debug(f"Received data from server: {received_pkg}")
+        file_name = args.name
+        self.seq_num += 1
+        pkg = Package(
+            type=client_type,   
+            flags=START_TRANSFER, 
+            data_length=len(file_name),
+            file_name='',
+            data=file_name.encode(),
+            seq_number=self.seq_num,
+            ack_number= received_pkg.ack_number + 1
+        ).encode_pkg()
+        
+        self.logger.debug("Envío el pedido al server")
+        self.socket.sendto(pkg, self.addr)
+
+        if client_type == UPLOAD_TYPE:
+            file_path = args.src
+
+            self.send_file(file_path)
+        
+        if client_type == DOWNLOAD_TYPE:
+            destination_path = args.dst
+
+            if not os.path.isdir(destination_path):
+                os.makedirs(destination_path, exist_ok=True)
+            
+            #while True:
+            datagram, _ = self.socket.recvfrom(BUFFER_SIZE)
+            self.push(datagram)
+            self.receive_file(destination_path, file_name)
+
             
     def acknowledge_connection(self):
         print("Le mando SYNACK al cliente")
@@ -66,17 +118,8 @@ class StopAndWait():
         ).encode_pkg()
         
         self.socket.sendto(pkg, self.addr)
-        
-    def start_data_transfer(self, pkg):
+    
 
-        if pkg.type == UPLOAD_TYPE: # El server va a recibir datos para descargar
-            print(f"Comenzando a recibir datos con: {self.addr}")
-            self.receive_file()
-        
-        if pkg.type == DOWNLOAD_TYPE: # El server va a enviar datos al cliente
-            print(f"Comenzando a transferir datos con: {self.addr}")
-            self.send_file(pkg)
-            
     def handle_unordered_package(self, seq_number):
         """En stop and wait el paquete se dropea y reenvio el ack"""
         print(
@@ -97,78 +140,43 @@ class StopAndWait():
         
         self.socket.sendto(pkg, self.addr)
         
+
     def push(self, datagram: bytes):    
         self.datagram_queue.put(datagram)
     
-    def send_file(self, pkg): 
-        time.sleep(0.75)
-        print(self.addr)
-        self.socket.sendto(pkg.encode_pkg(), self.addr)
-    
 
-    def send_file2(self, data, file_name): 
-        time.sleep(0.75)
-        seq_number = 2
+    def send_file(self, file_path):
+        data = prepare_file_for_transmission(file_path)
+
+        #while True:
+        self.seq_num += 1
 
         pkg = Package(
-            type=2,   
+            type=2,
             flags=NO_FLAG, 
             data_length=len(data),
-            file_name=file_name,
+            file_name="test_send_file.txt",
             data=data,
-            seq_number=seq_number,
+            seq_number=self.seq_num,
             ack_number=0 # TODO: por ahora no le da pelota a esto
         )
 
-        print(self.addr)
         self.socket.sendto(pkg.encode_pkg(), self.addr)
 
-    def set_socket(self, new_socket):
-        self.socket = new_socket
-        print(new_socket)
-
         
-    def receive_file(self):
-        # TODO: este pasa a convertirse en el loop principal. El pkg recibido
-        # es el del flag START_TRANSFER y tiene que tener como datos el nombre
-        # del archivo, donde lo quiere guardar etc. Eso se hace una única vez
-        # acá y ya queda guardado => en ese paquete el cliente manda esa info
-        # dentro de data
-        
-        # TODO: esta va a ser la misma función que usa el cliente cuando quiera
-        # descargarse algo
+    def receive_file(self, destination_path, file_name):
         while True:
-
-            print("RECIBIENDO")
-
-
-            if not self.datagram_queue.empty():  # Verificar si la cola no está vacía
-                datagram = self.datagram_queue.get(block=True, timeout=1)
-                pkg = Package.decode_pkg(datagram)
+            datagram = self.datagram_queue.get(block=True, timeout=1)
+            pkg = Package.decode_pkg(datagram)
             
-                print(f"From client {self.addr} received: {pkg.data.decode()}")
+            print(f"From client {self.addr} received: {pkg.data.decode()}")
 
-                print(pkg.type, pkg.flags, pkg.data_length, pkg.file_name, pkg.data, pkg.seq_number, pkg.ack_number)
+            # TODO: Chequear orden del paquete
+            # TODO: Esperar a tener todo el archivo
+            # TODO: Chequear por flag FIN para cortar la conexion
 
-                if (pkg.type == 2):
-                    print("ENVIO!")
-                    self.send_file2(pkg)
-                    break
+            print("Voy a guardar el archivo")
+            file = open(destination_path + "/" + file_name, "wb")
+            file.write(pkg.data)
 
-                print("Voy a guardar el archivo")
-                file = open(self.storage + "/" + pkg.file_name, "wb")
-                file.write(pkg.data)
-
-                print("Lo guarde")
-            else:
-            # Manejar la situación de cola vacía
-                print("La cola está vacía. No hay paquetes para procesar.")
-                print (self.addr)
-                time.sleep(1)  # Esperar antes de intentar nuevamente
-                
-            
-            #datagram = self.datagram_queue.get(block=True, timeout=1)
-            
-
-        
-   
+            print("Lo guarde")
