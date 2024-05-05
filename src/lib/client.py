@@ -2,18 +2,23 @@ from logging import Logger
 from lib.package import Package
 from lib.values import *
 from lib.stop_and_wait import StopAndWait
+from lib.selective_repeat import SelectiveRepeat
 from lib.utils import *
 from socket import socket, AF_INET, SOCK_DGRAM
 import os
 from queue  import Queue
 
 class Client:
-    def __init__(self, ip, port, type, logger: Logger, destination):
+    def __init__(self, ip, port, type, logger: Logger, destination, protocol):
         self.ip = ip
         self.port = port
         self.server_address = None
         self.logger = logger
-        self.protocol = StopAndWait((ip, port), logger, destination)
+
+        if protocol == STOP_AND_WAIT:
+            self.protocol = StopAndWait((ip, port), logger, destination)
+        elif protocol == SELECTIVE_REPEAT:
+            self.protocol = SelectiveRepeat((ip, port), logger, destination)
 
         if type == UPLOAD_TYPE or type == DOWNLOAD_TYPE:
             self.type = type

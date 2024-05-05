@@ -4,8 +4,10 @@ from logging import Logger
 import queue
 import os
 
+from lib.package import Package
 from lib.values import *
 from lib.stop_and_wait import StopAndWait
+from lib.selective_repeat import SelectiveRepeat
 
 class Server:
     """Se encarga de recibir todos los mensajes, instanciar nuevos clientes, 
@@ -45,15 +47,21 @@ class Server:
             datagram, addr = self.socket.recvfrom(1024)
             #print (datagram)
             # self.logger.debug(f"Arrived: {Package.decode_pkg(datagram)}, from {addr}")
-
+            data = (Package.decode_pkg(datagram).data).decode('utf-8')
+            
             print("Clients:", self.clients)
             
             if addr in self.clients:
                 self.clients[addr].push(datagram)
             else:
-                print("Nuevo cliente")
-                # TODO: checkear si es stop and wait o SelectiveRepeat
-                new_client = StopAndWait(addr, self.logger, self.storage)
+                print("Nuevo cliente")                
+                if STOP_AND_WAIT in data:
+                    self.logger.debug("Received 'Stop & Wait' protocol from client")
+                    new_client = StopAndWait(addr, self.logger, self.storage)
+                elif SELECTIVE_REPEAT in data:
+                    self.logger.debug("Received 'Selective Repeat' protocol from client")
+                    new_client = SelectiveRepeat(addr, self.logger, self.storage)
+                
                 new_client.push(datagram)
                 self.clients[addr] = new_client
                 
