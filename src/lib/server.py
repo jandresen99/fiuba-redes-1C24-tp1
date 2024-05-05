@@ -43,7 +43,7 @@ class Server:
            
         while True:
             datagram, addr = self.socket.recvfrom(1024)
-            
+            #print (datagram)
             # self.logger.debug(f"Arrived: {Package.decode_pkg(datagram)}, from {addr}")
 
             print("Clients:", self.clients)

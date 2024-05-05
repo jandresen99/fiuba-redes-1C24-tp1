@@ -68,7 +68,7 @@ class StopAndWait():
         self.socket.sendto(pkg, self.addr)
         
     def start_data_transfer(self, pkg):
-        
+
         if pkg.type == UPLOAD_TYPE: # El server va a recibir datos para descargar
             print(f"Comenzando a recibir datos con: {self.addr}")
             self.receive_file()
@@ -102,11 +102,30 @@ class StopAndWait():
     
     def send_file(self, pkg): 
         time.sleep(0.75)
-
+        print(self.addr)
         self.socket.sendto(pkg.encode_pkg(), self.addr)
     
+
+    def send_file2(self, data, file_name): 
+        time.sleep(0.75)
+        seq_number = 2
+
+        pkg = Package(
+            type=2,   
+            flags=NO_FLAG, 
+            data_length=len(data),
+            file_name=file_name,
+            data=data,
+            seq_number=seq_number,
+            ack_number=0 # TODO: por ahora no le da pelota a esto
+        )
+
+        print(self.addr)
+        self.socket.sendto(pkg.encode_pkg(), self.addr)
+
     def set_socket(self, new_socket):
         self.socket = new_socket
+        print(new_socket)
 
         
     def receive_file(self):
@@ -119,15 +138,37 @@ class StopAndWait():
         # TODO: esta va a ser la misma función que usa el cliente cuando quiera
         # descargarse algo
         while True:
-            datagram = self.datagram_queue.get(block=True, timeout=1)
-            pkg = Package.decode_pkg(datagram)
+
+            print("RECIBIENDO")
+
+
+            if not self.datagram_queue.empty():  # Verificar si la cola no está vacía
+                datagram = self.datagram_queue.get(block=True, timeout=1)
+                pkg = Package.decode_pkg(datagram)
             
-            print(f"From client {self.addr} received: {pkg.data.decode()}")
+                print(f"From client {self.addr} received: {pkg.data.decode()}")
 
-            print(pkg.type, pkg.flags, pkg.data_length, pkg.file_name, pkg.data, pkg.seq_number, pkg.ack_number)
+                print(pkg.type, pkg.flags, pkg.data_length, pkg.file_name, pkg.data, pkg.seq_number, pkg.ack_number)
 
-            print("Voy a guardar el archivo")
-            file = open(self.storage + "/" + pkg.file_name, "wb")
-            file.write(pkg.data)
+                if (pkg.type == 2):
+                    print("ENVIO!")
+                    self.send_file2(pkg)
+                    break
 
-            print("Lo guarde")
+                print("Voy a guardar el archivo")
+                file = open(self.storage + "/" + pkg.file_name, "wb")
+                file.write(pkg.data)
+
+                print("Lo guarde")
+            else:
+            # Manejar la situación de cola vacía
+                print("La cola está vacía. No hay paquetes para procesar.")
+                print (self.addr)
+                time.sleep(1)  # Esperar antes de intentar nuevamente
+                
+            
+            #datagram = self.datagram_queue.get(block=True, timeout=1)
+            
+
+        
+   

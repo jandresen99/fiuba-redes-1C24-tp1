@@ -5,6 +5,7 @@ from lib.stop_and_wait import StopAndWait
 from lib.utils import *
 from socket import socket, AF_INET, SOCK_DGRAM
 import os
+from queue  import Queue
 
 class Client:
     def __init__(self, ip, port, type, logger: Logger, destination):
@@ -48,7 +49,7 @@ class Client:
         # Empezar download o upload
         message = 'Quiero descargar o subir algo ni idea.'.encode()
         pkg = Package(
-            type=1,  
+            type=1,   
             flags=START_TRANSFER, 
             data_length=len(message),
             file_name='',
@@ -66,7 +67,7 @@ class Client:
         seq_number = 2
 
         pkg = Package(
-            type=2,  
+            type=2,   #no deberia ser 1??
             flags=NO_FLAG, 
             data_length=len(data),
             file_name=file_name,
@@ -76,9 +77,40 @@ class Client:
         )
 
         self.protocol.start_data_transfer(pkg)    
+    
+    
 
     def send(self, package: bytes, address=None):
         if not address:
             address = (self.ip, self.port)
+            print(address)
+        self.socket.sendto(package, address) 
+ 
+
+    def download (self, file_name):
+        pkg = Package(
+            type=2,  # DOWNLOAD_TYPE es 2
+            flags=NO_FLAG,       
+            data_length=len(file_name.encode()),
+            file_name=file_name, 
+            data=file_name.encode(),
+            seq_number=2,    #tengo mis dudas     
+            ack_number=0        
+        ).encode_pkg()
+
+        print("Envío el pedido al server")
+        self.send(pkg)
         
-        self.socket.sendto(package, address)  
+        pkg1 = Package(
+            type=1,  # UPLOAD_TYPE es 1
+            flags=NO_FLAG,     
+            data_length=len(file_name.encode()),
+            file_name=file_name, 
+            data=file_name.encode(),
+            seq_number=2,    #tengo mis dudas     
+            ack_number=0 
+        )
+        self.protocol.start_data_transfer(pkg1) 
+        
+        
+        

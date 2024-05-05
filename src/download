@@ -8,9 +8,12 @@ def main():
         logger = set_logger(args, __name__)
         client = Client(args.host, args.port, DOWNLOAD_TYPE, logger, args.dst)
         client.start()
+        client.download(args.name)
         
     except KeyboardInterrupt:
         print("\nClosing Client...")
     
 if __name__ == "__main__":
     main()
+
+
