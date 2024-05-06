@@ -133,7 +133,9 @@ class StopAndWait():
             ack_number=seq_number
         ).encode_pkg()
         
+        
         self.socket.sendto(pkg, self.addr)
+        self.ack_num = seq_number
 
     def get_ack(self):
         datagram = self.datagram_queue.get(block=True, timeout=1)
@@ -232,8 +234,10 @@ class StopAndWait():
             else:
                 self.logger.info(f"Got seq_number {pkg.seq_number} from client {self.addr}")
 
-                if pkg.seq_number == self.ack_num:
-                    continue
+                print ("ACK!", pkg.seq_number)
+                print("ACK",self.ack_num)
+                #if pkg.seq_number == self.ack_num:
+                    #continue
 
                 if self.ack_num > pkg.seq_number + 1:
                     self.logger.info(f"Wrong self.ack_num = {self.ack_num} and  pkg.seq_number + 1 = {pkg.seq_number + 1}")
