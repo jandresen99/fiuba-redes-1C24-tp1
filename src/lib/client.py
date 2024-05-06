@@ -4,6 +4,8 @@ from lib.stop_and_wait import StopAndWait
 from lib.selective_repeat import SelectiveRepeat
 from lib.utils import *
 from threading import Thread
+import random 
+from lib.package import Package
 
 
 # TODO: hacer que el cliente cierre solo cuando termina de enviar o recibir algo
@@ -30,6 +32,14 @@ class Client:
         thread.start()
         
         while True:
-            datagram, _ = self.protocol.socket.recvfrom(BUFFER_SIZE)
+            datagram, addr = self.protocol.socket.recvfrom(BUFFER_SIZE)
+
+            rand_num = random.random() # Entre 0 y 1
+            if rand_num < 0:
+                num_package = Package.decode_pkg(datagram).seq_number
+                print(f"\n[DROP] Se perdió el package {num_package} proveniente de {addr}")
+                print(f"Flags: {Package.decode_pkg(datagram).flags}\n")
+                continue
+
             self.protocol.push(datagram)
-                
+            
