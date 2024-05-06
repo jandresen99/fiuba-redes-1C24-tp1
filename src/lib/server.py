@@ -9,6 +9,8 @@ from lib.values import *
 from lib.stop_and_wait import StopAndWait
 from lib.selective_repeat import SelectiveRepeat
 
+import random # TODO: borrar esto
+
 class Server:
     """Se encarga de recibir todos los mensajes, instanciar nuevos clientes, 
        manejo de threads, pushear los mensajes a los clientes indicados (multiplexar)
@@ -44,8 +46,18 @@ class Server:
            dirige los mensajes a los clientes correspondientes"""
            
         while True:
-            # TODO: hacer un random generator para testear con perdida de paquetes después borrarlo
             datagram, addr = self.socket.recvfrom(BUFFER_SIZE)
+            
+            ####################################################################
+            # TODO: borrar esto
+            # Dropeo el 50% de los paquetes para testear
+            rand_num = random.random() # Entre 0 y 1
+            if rand_num < 0.5:
+                num_package = Package.decode_pkg(datagram).seq_number
+                print(f"\n[DROP] Se perdió el package {num_package} proveniente de {addr}")
+                print(f"Flags: {Package.decode_pkg(datagram).flags}\n")
+                continue
+            ####################################################################
     
             if addr in self.clients:
                 self.logger.info(f"Old client: {addr}")

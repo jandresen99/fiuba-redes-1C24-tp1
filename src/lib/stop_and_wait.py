@@ -36,7 +36,7 @@ class StopAndWait():
     def start_server(self):
         """ Empieza a consumir paquetes"""
         while True:
-            datagram = self.datagram_queue.get(block=True, timeout=1)
+            datagram = self.datagram_queue.get(block=True, timeout=CONNECTION_TIMEOUT)
             pkg = Package.decode_pkg(datagram)
             
             # self.logger.info(f"New package from client {self.addr}")
@@ -77,7 +77,7 @@ class StopAndWait():
         # Esperar respuesta
         # TODO: hay que hacer un try-catch para que no explote cuando hay un
         # timeout en el recv
-        datagram = self.datagram_queue.get(block=True, timeout=1)
+        datagram = self.datagram_queue.get(block=True, timeout=CONNECTION_TIMEOUT)
         received_pkg = Package.decode_pkg(datagram)
         #self.logger.info(f"Received data from server: {received_pkg}")
         file_name = args.name
@@ -142,7 +142,7 @@ class StopAndWait():
         
 
     def get_ack(self):
-        datagram = self.datagram_queue.get(block=True, timeout=1)
+        datagram = self.datagram_queue.get(block=True, timeout=CONNECTION_TIMEOUT)
         pkg = Package.decode_pkg(datagram)
         last_pkg = Package.decode_pkg(self.last_sent_pkg)
         
@@ -237,7 +237,7 @@ class StopAndWait():
         file = open(destination_path + "/" + file_name, "wb+")
 
         while keep_receiving:
-            datagram = self.datagram_queue.get(block=True, timeout=1)
+            datagram = self.datagram_queue.get(block=True, timeout=CONNECTION_TIMEOUT)
             pkg = Package.decode_pkg(datagram)
 
             if pkg.flags == FIN:
@@ -267,7 +267,7 @@ class StopAndWait():
         if self.timer is not None:
             self.timer.cancel()  # Cancela el timer anterior si existe
         
-        self.timer = threading.Timer(TIMEOUT_SECONDS, self.handle_timeout)
+        self.timer = threading.Timer(PKG_TIMEOUT, self.handle_timeout)
         self.timer.start()
 
     def handle_timeout(self):
