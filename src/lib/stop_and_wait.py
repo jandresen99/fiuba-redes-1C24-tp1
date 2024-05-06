@@ -77,13 +77,16 @@ class StopAndWait():
         self.socket.sendto(handshake_pkg, self.addr) 
         self.last_sent_pkg = handshake_pkg   
         self.start_timer()
+        print("prendo timer")
         synack_pkg = self.get_synack()
         
         # Esperar respuesta
         # TODO: hay que hacer un try-catch para que no explote cuando hay un
         # timeout en el recv
-        datagram = self.datagram_queue.get(block=True, timeout=CONNECTION_TIMEOUT)
-        received_pkg = Package.decode_pkg(datagram)
+        print("llegue")
+        #datagram = self.datagram_queue.get(block=True, timeout=CONNECTION_TIMEOUT)
+        #received_pkg = Package.decode_pkg(datagram)
+        print("llegue")
         #self.logger.info(f"Received data from server: {received_pkg}")
         file_name = args.name
         self.seq_num += 1
@@ -108,13 +111,14 @@ class StopAndWait():
             file_path = args.src
             self.last_sent_pkg = pkg   
             self.start_timer()
+            print("prendo timer")
             ack_pkg = self.get_ack()
             self.send_file(file_path)
         
         if client_type == DOWNLOAD_TYPE:
             destination_path = args.dst
             self.last_sent_pkg = pkg   
-            #self.start_timer()
+            self.start_timer()
             ack_pkg = self.get_ack_receiver()
             
             if not os.path.isdir(destination_path):
@@ -162,7 +166,10 @@ class StopAndWait():
         
         if pkg.flags == ACK:
             if pkg.ack_number == last_pkg.seq_number: #caso de ack no duplicado
-                self.start_timer()  #Reinicia el timer porque recibio un ACK
+                if self.timer is not None:
+                    self.timer.cancel()
+                    print("apago timer")
+                #self.start_timer()  #Reinicia el timer porque recibio un ACK
                 self.ack_num+=1
             return pkg
     
@@ -174,7 +181,10 @@ class StopAndWait():
         if pkg.flags == SYN:
             if pkg.ack_number == last_pkg.seq_number: #caso de ack no duplicado
                 #("reinicio timer")
-                self.start_timer()  #Reinicio el timer porque recibio un ACK
+                if self.timer is not None:
+                    self.timer.cancel()
+                    print("apago timer")
+                #self.start_timer()  #Reinicio el timer porque recibio un ACK
                 self.ack_num+=1
             return pkg
         
@@ -184,8 +194,11 @@ class StopAndWait():
         last_pkg = Package.decode_pkg(self.last_sent_pkg)
         
         if pkg.flags == NO_FLAG:
+            if self.timer is not None:
+                self.timer.cancel()
+                print("apago timer")
             #if pkg.ack_number == last_pkg.seq_number: #caso de ack no duplicado
-            self.timer.cancel()  #Apago el timer porque recibio un ACK
+            #self.timer.cancel()  #Apago el timer porque recibio un ACK
             self.ack_num+=1
             return pkg
 
@@ -238,6 +251,7 @@ class StopAndWait():
             # Guarda el último paquete enviado para retransmitirlo en caso de timeout
             self.last_sent_pkg = pkg.encode_pkg()   
             self.start_timer()
+            print("prendo timer")
 
             file_size -= data_length
 
@@ -264,8 +278,10 @@ class StopAndWait():
         self.logger.info(f"[{self.addr}] File size remaining: {file_size}")
         self.logger.info(f"[{self.addr}] Sending FIN")
         if self.timer is not None:
-            self.timer.cancel() # Apago timer # TODO: Despues del FIN, ACK, otro FIN, ack.
+            self.timer.cancel() # Apago timer 
+            print("apago timer")
         self.socket.sendto(pkg.encode_pkg(), self.addr)
+        print("MY SEQ NUM ES", self.seq_num)
         self.seq_num+=1
         
     def receive_file(self, destination_path, file_name):
@@ -277,8 +293,12 @@ class StopAndWait():
             pkg = Package.decode_pkg(datagram)
 
             if pkg.flags == FIN:
-                print("recibo FIN y mando ACK")
+                print("recibo FIN y mando ACK", pkg.seq_number)
                 self.send_ack(pkg.seq_number)
+                if self.timer is not None:
+                    self.timer.cancel()
+                    print("apago timer")
+                
                 
                 keep_receiving = False
             else:
@@ -305,6 +325,7 @@ class StopAndWait():
     def start_timer(self):
         if self.timer is not None:
             self.timer.cancel()  # Cancela el timer anterior si existe
+            
         
         self.timer = threading.Timer(PKG_TIMEOUT, self.handle_timeout)
         self.timer.start()
@@ -321,5 +342,6 @@ class StopAndWait():
             #self.ack_num=0
 
             self.start_timer()  # Reinicia el temporizador
+            print("prendo timer")
     
   
