@@ -5,6 +5,7 @@ from lib.values import *
 from lib.utils import *
 import time # TODO: sacar esto
 import os
+import threading
 
 class StopAndWait():
     """ Clase que encapsula toda la comunicación: recursos utilizados, estado de
@@ -28,6 +29,9 @@ class StopAndWait():
         self.tries_send = 0
         
         self.logger = logger
+
+        self.timer = None
+        self.last_sent_pkg = None  # Almacena el último paquete enviado
         
     def start_server(self):
         """ Empieza a consumir paquetes"""
@@ -129,14 +133,20 @@ class StopAndWait():
             ack_number=seq_number
         ).encode_pkg()
         
+        
         self.socket.sendto(pkg, self.addr)
+        self.ack_num = seq_number
 
     def get_ack(self):
         datagram = self.datagram_queue.get(block=True, timeout=1)
         pkg = Package.decode_pkg(datagram)
-
+        
+        
         if pkg.flags == ACK:
+            self.start_timer()  #Reinicia el timer porque recibio un ACK
             return pkg
+        
+
     
 
     def handle_unordered_package(self, seq_number):
@@ -182,9 +192,14 @@ class StopAndWait():
             self.logger.info(f"Sending file to {self.addr}")
             self.socket.sendto(pkg.encode_pkg(), self.addr)
 
+            # Guarda el último paquete enviado para retransmitirlo en caso de timeout
+            self.last_sent_pkg = pkg.encode_pkg()   
+            self.start_timer()
+
             file_size -= data_length
 
             ack_pkg = self.get_ack()
+
             if ack_pkg.ack_number < self.seq_num:
                 self.logger.info(f"Duplicated ACK {ack_pkg.ack_number} while self.seq_num {self.seq_num} from {self.addr}")
                 raise Exception
@@ -202,6 +217,7 @@ class StopAndWait():
             )
 
         self.logger.info(f"Sending FIN to {self.addr}")
+        self.timer.cancel() # Apago timer
         self.socket.sendto(pkg.encode_pkg(), self.addr)
 
         
@@ -218,6 +234,11 @@ class StopAndWait():
             else:
                 self.logger.info(f"Got seq_number {pkg.seq_number} from client {self.addr}")
 
+                print ("ACK!", pkg.seq_number)
+                print("ACK",self.ack_num)
+                #if pkg.seq_number == self.ack_num:
+                    #continue
+
                 if self.ack_num > pkg.seq_number + 1:
                     self.logger.info(f"Wrong self.ack_num = {self.ack_num} and  pkg.seq_number + 1 = {pkg.seq_number + 1}")
                     raise Exception
@@ -225,5 +246,28 @@ class StopAndWait():
                 self.send_ack(pkg.seq_number)
 
                 file.write(pkg.data)
+                
+                
+
+                
         
         self.logger.info(f"File {file_name} received from client {self.addr}")
+
+    
+    def start_timer(self):
+        if self.timer is not None:
+            self.timer.cancel()  # Cancela el timer anterior si existe
+        
+        self.timer = threading.Timer(TIMEOUT_SECONDS, self.handle_timeout)
+        self.timer.start()
+
+    def handle_timeout(self):
+        """ Se llama cuando se agota el temporizador (timeout) """
+        if self.last_sent_pkg is not None:
+            # Retransmito el último paquete 
+            
+            self.logger.debug("Timeout: retransmitiendo último paquete")
+            self.socket.sendto(self.last_sent_pkg, self.addr)
+            self.start_timer()  # Reinicia el temporizador
+    
+  
