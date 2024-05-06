@@ -70,7 +70,7 @@ class StopAndWait():
         # El server contesta con un SYN 1 y el ACK
         # El cliente envía un ACK con SYN 0 y la conexión queda establecida
         handshake_pkg = Package.handshake_pkg(client_type, self)
-        self.logger.info(f"Sending SYN to {self.addr}")
+        self.logger.info(f"[{self.addr}] Sending SYN")
         self.socket.sendto(handshake_pkg, self.addr) 
         
         
@@ -79,7 +79,7 @@ class StopAndWait():
         # timeout en el recv
         datagram = self.datagram_queue.get(block=True, timeout=1)
         received_pkg = Package.decode_pkg(datagram)
-        self.logger.info(f"Received data from server: {received_pkg}")
+        #self.logger.info(f"Received data from server: {received_pkg}")
         file_name = args.name
         self.seq_num += 1
         #self.ack_num = received_pkg.ack_number + 1
@@ -92,7 +92,7 @@ class StopAndWait():
             ack_number=self.ack_num
         ).encode_pkg()
         
-        self.logger.info("Envío el pedido al server")
+        self.logger.info(f"[{self.addr}] Sending START_TRANSFER")
         self.socket.sendto(pkg, self.addr)
         self.seq_num+=1
 
@@ -180,7 +180,7 @@ class StopAndWait():
         file, file_size = prepare_file_for_transmission(file_path)
 
         while file_size > 0:
-            self.logger.info(f"File size remaining: {file_size}")
+            self.logger.info(f"[{self.addr}] File size remaining: {file_size}")
             data = file.read(DATA_SIZE)
             #self.seq_num += 1
             #self.ack_num += 1
@@ -195,7 +195,7 @@ class StopAndWait():
                 ack_number=self.ack_num
             )
 
-            self.logger.info(f"Sending file to {self.addr}")
+            self.logger.info(f"[{self.addr}] Sending {data_length} bytes")
             self.socket.sendto(pkg.encode_pkg(), self.addr)
             
 
@@ -225,6 +225,7 @@ class StopAndWait():
                 ack_number=0 # TODO: por ahora no le da pelota a esto
             )
 
+        self.logger.info(f"[{self.addr}] File size remaining: {file_size}")
         self.logger.info(f"[{self.addr}] Sending FIN")
         if self.timer is not None:
             self.timer.cancel() # Apago timer

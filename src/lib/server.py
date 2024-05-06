@@ -44,6 +44,7 @@ class Server:
            dirige los mensajes a los clientes correspondientes"""
            
         while True:
+            # TODO: hacer un random generator para testear con perdida de paquetes después borrarlo
             datagram, addr = self.socket.recvfrom(BUFFER_SIZE)
     
             if addr in self.clients:
