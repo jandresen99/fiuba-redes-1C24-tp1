@@ -15,7 +15,7 @@ class Package:
         self.ack_number = ack_number
         self.data = data
         
-    # Para debuggear
+    # Para infogear
     def __str__(self):
         return f"""Package(
             Type: {self.type},
@@ -30,14 +30,10 @@ class Package:
         bytes_arr = b""
         bytes_arr += self.type.to_bytes(1, byteorder='big')
         bytes_arr += self.flags.to_bytes(1, byteorder='big')
-
-
-
         bytes_arr += self.data_length.to_bytes(4, signed=False, byteorder='big')
         bytes_arr += self.seq_number.to_bytes(4, byteorder='big', signed=False)
         bytes_arr += self.ack_number.to_bytes(4, byteorder='big', signed=False)
 
-        # append data from position 1024 to 2048
         bytes_arr += add_padding(self.data, BUFFER_SIZE - len(bytes_arr))
 
         return bytes_arr
