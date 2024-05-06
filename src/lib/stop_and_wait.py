@@ -65,7 +65,6 @@ class StopAndWait():
                 
                 if pkg.type == DOWNLOAD_TYPE:
                     self.logger.info(f"[{self.addr}] Client is DOWNLOADING file")
-                    
                     self.send_file(self.storage + "/" + pkg.data.decode())
     
 
@@ -115,7 +114,7 @@ class StopAndWait():
         if client_type == DOWNLOAD_TYPE:
             destination_path = args.dst
             self.last_sent_pkg = pkg   
-            self.start_timer()
+            #self.start_timer()
             ack_pkg = self.get_ack_receiver()
             
             if not os.path.isdir(destination_path):
@@ -174,7 +173,7 @@ class StopAndWait():
         
         if pkg.flags == SYN:
             if pkg.ack_number == last_pkg.seq_number: #caso de ack no duplicado
-                #print("reinicio timer")
+                #("reinicio timer")
                 self.start_timer()  #Reinicio el timer porque recibio un ACK
                 self.ack_num+=1
             return pkg
@@ -184,10 +183,10 @@ class StopAndWait():
         pkg = Package.decode_pkg(datagram)
         last_pkg = Package.decode_pkg(self.last_sent_pkg)
         
-        if pkg.flags == ACK:
-            if pkg.ack_number == last_pkg.seq_number: #caso de ack no duplicado
-                self.timer.cancel()  #Apago el timer porque recibio un ACK
-                self.ack_num+=1
+        if pkg.flags == NO_FLAG:
+            #if pkg.ack_number == last_pkg.seq_number: #caso de ack no duplicado
+            self.timer.cancel()  #Apago el timer porque recibio un ACK
+            self.ack_num+=1
             return pkg
 
     
