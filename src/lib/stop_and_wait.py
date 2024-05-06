@@ -141,7 +141,7 @@ class StopAndWait():
         
         
         if pkg.flags == ACK:
-            self.start_timer()  #Reinicia el temporizador
+            self.start_timer()  #Reinicia el timer porque recibio un ACK
             return pkg
         
 
@@ -192,7 +192,6 @@ class StopAndWait():
 
             # Guarda el último paquete enviado para retransmitirlo en caso de timeout
             self.last_sent_pkg = pkg.encode_pkg()   
-            # Inicia el temporizador después de enviar el paquete
             self.start_timer()
 
             file_size -= data_length
@@ -216,7 +215,7 @@ class StopAndWait():
             )
 
         self.logger.info(f"Sending FIN to {self.addr}")
-        self.timer.cancel() #apago timer
+        self.timer.cancel() # Apago timer
         self.socket.sendto(pkg.encode_pkg(), self.addr)
 
         
@@ -250,7 +249,7 @@ class StopAndWait():
     
     def start_timer(self):
         if self.timer is not None:
-            self.timer.cancel()  # Cancela el temporizador anterior si existe
+            self.timer.cancel()  # Cancela el timer anterior si existe
         
         self.timer = threading.Timer(TIMEOUT_SECONDS, self.handle_timeout)
         self.timer.start()
@@ -258,7 +257,7 @@ class StopAndWait():
     def handle_timeout(self):
         """ Se llama cuando se agota el temporizador (timeout) """
         if self.last_sent_pkg is not None:
-            # Retransmitir el último paquete enviado que no ha sido confirmado
+            # Retransmito el último paquete 
             
             self.logger.debug("Timeout: retransmitiendo último paquete")
             self.socket.sendto(self.last_sent_pkg, self.addr)
