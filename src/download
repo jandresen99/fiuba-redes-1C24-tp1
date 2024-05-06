@@ -6,7 +6,7 @@ def main():
     try:
         args = get_download_args()
         logger = set_logger(args, __name__)
-        client = Client(args.host, args.port, DOWNLOAD_TYPE, logger, args.dst)
+        client = Client(args.host, args.port, DOWNLOAD_TYPE, logger, args.dst, args.protocol)
         client.start(args)
         
     except KeyboardInterrupt:

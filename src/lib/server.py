@@ -4,8 +4,10 @@ from logging import Logger
 import queue
 import os
 
+from lib.package import Package
 from lib.values import *
 from lib.stop_and_wait import StopAndWait
+from lib.selective_repeat import SelectiveRepeat
 
 class Server:
     """Se encarga de recibir todos los mensajes, instanciar nuevos clientes, 
@@ -42,18 +44,31 @@ class Server:
            dirige los mensajes a los clientes correspondientes"""
            
         while True:
-            datagram, addr = self.socket.recvfrom(1024)
+
+            datagram, addr = self.socket.recvfrom(BUFFER_SIZE)
             #print (datagram)
             # self.logger.debug(f"Arrived: {Package.decode_pkg(datagram)}, from {addr}")
-
+            data = (Package.decode_pkg(datagram).data).decode('utf-8')
+            
             print("Clients:", self.clients)
+
+            
+
             
             if addr in self.clients:
+                self.logger.info(f"Old client: {addr}")
                 self.clients[addr].push(datagram)
             else:
-                print("Nuevo cliente")
-                # TODO: checkear si es stop and wait o SelectiveRepeat
-                new_client = StopAndWait(addr, self.logger, self.storage)
+
+                self.logger.info(f"New client: {addr}")                
+                if STOP_AND_WAIT in data:
+                    self.logger.debug("Received 'Stop & Wait' protocol from client")
+                    new_client = StopAndWait(addr, self.logger, self.storage)
+                elif SELECTIVE_REPEAT in data:
+                    self.logger.debug("Received 'Selective Repeat' protocol from client")
+                    new_client = SelectiveRepeat(addr, self.logger, self.storage)
+                
+
                 new_client.push(datagram)
                 self.clients[addr] = new_client
                 
@@ -66,7 +81,7 @@ class Server:
         try:
             self.clients[addr].start_server()
         except queue.Empty: # TODO: deberias lanzar una excepcion cuando se pasan los tries
-            print(f"Se perdió la conexión con el cliente {addr}")
+            self.logger.info(f"Lost connection with client: {addr}")
         
     def stop(self):
         self.socket.close()

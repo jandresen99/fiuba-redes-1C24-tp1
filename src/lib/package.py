@@ -7,22 +7,20 @@ def add_padding(data: bytes, n: int):
     return data + b"\0" * k
 
 class Package:
-    def __init__(self, type, flags, data_length, file_name, data: bytes, seq_number=0, ack_number=0):
+    def __init__(self, type, flags, data_length, data: bytes, seq_number=0, ack_number=0):
         self.type = type
         self.flags = flags # 8 bits, se lee como un nº asociado a un único flag
         self.data_length = data_length
-        self.file_name = file_name # TODO: para que mandar todo el tiempo el filename?
         self.seq_number = seq_number
         self.ack_number = ack_number
         self.data = data
         
-    # Para debuggear
+    # Para infogear
     def __str__(self):
         return f"""Package(
             Type: {self.type},
             Flags: {self.flags},
             Data Length: {self.data_length},
-            File Name: {self.file_name},
             Seq Number: {self.seq_number},
             Ack Number: {self.ack_number},
             Data: {self.data}          
@@ -32,16 +30,10 @@ class Package:
         bytes_arr = b""
         bytes_arr += self.type.to_bytes(1, byteorder='big')
         bytes_arr += self.flags.to_bytes(1, byteorder='big')
-        bytes_arr += self.data_length.to_bytes(4,
-                                               signed=False, byteorder='big')
-
-        if self.file_name is not None:
-            bytes_arr += add_padding(self.file_name.encode(), 400)
-
+        bytes_arr += self.data_length.to_bytes(4, signed=False, byteorder='big')
         bytes_arr += self.seq_number.to_bytes(4, byteorder='big', signed=False)
         bytes_arr += self.ack_number.to_bytes(4, byteorder='big', signed=False)
 
-        # append data from position 1024 to 2048
         bytes_arr += add_padding(self.data, BUFFER_SIZE - len(bytes_arr))
 
         return bytes_arr
@@ -50,19 +42,18 @@ class Package:
     def decode_pkg(cls, bytes_arr):
         flags = bytes_arr[1]
         data_length = int.from_bytes(bytes_arr[2:6], byteorder="big")
-        file_name = bytes_arr[6:406].decode().strip('\0')
-        seq_number = int.from_bytes(bytes_arr[406:410], byteorder="big")
-        ack_number = int.from_bytes(bytes_arr[410:414], byteorder="big")
-        data = bytes_arr[414: 414 + data_length]
+        seq_number = int.from_bytes(bytes_arr[6:10], byteorder="big")
+        ack_number = int.from_bytes(bytes_arr[10:14], byteorder="big")
+        data = bytes_arr[14: 14 + data_length]
 
         if bytes_arr[0] == 1 or bytes_arr[0] == 2:
             type = bytes_arr[0]
         else:
             raise ValueError
         
-        return Package(type, flags, data_length, file_name, data, seq_number, ack_number)
+        return Package(type, flags, data_length, data, seq_number, ack_number)
     
     @classmethod
     def handshake_pkg(cls, type, protocol):
-        return Package(type, SYN, len(protocol.name.encode()), "", protocol.name.encode()).encode_pkg()
+        return Package(type, SYN, len(protocol.name.encode()), protocol.name.encode()).encode_pkg()
     
