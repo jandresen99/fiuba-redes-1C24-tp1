@@ -232,6 +232,9 @@ class StopAndWait():
             else:
                 self.logger.info(f"Got seq_number {pkg.seq_number} from client {self.addr}")
 
+                if pkg.seq_number == self.ack_num:
+                    continue
+
                 if self.ack_num > pkg.seq_number + 1:
                     self.logger.info(f"Wrong self.ack_num = {self.ack_num} and  pkg.seq_number + 1 = {pkg.seq_number + 1}")
                     raise Exception
