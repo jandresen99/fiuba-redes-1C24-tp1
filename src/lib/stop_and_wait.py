@@ -144,10 +144,12 @@ class StopAndWait():
     def get_ack(self):
         datagram = self.datagram_queue.get(block=True, timeout=1)
         pkg = Package.decode_pkg(datagram)
+        last_pkg = Package.decode_pkg(self.last_sent_pkg)
         
         
         if pkg.flags == ACK:
-            self.start_timer()  #Reinicia el timer porque recibio un ACK
+            if pkg.ack_number == last_pkg.seq_number: #caso de ack duplicado
+                self.start_timer()  #Reinicia el timer porque recibio un ACK
             self.ack_num+=1
             return pkg
         
@@ -206,9 +208,9 @@ class StopAndWait():
 
             ack_pkg = self.get_ack()
 
-            if ack_pkg.ack_number < self.seq_num:
-                self.logger.info(f"Duplicated ACK {ack_pkg.ack_number} while self.seq_num {self.seq_num} from {self.addr}")
-                raise Exception
+            #if ack_pkg.ack_number == self.seq_num:
+            #    self.logger.info(f"Duplicated ACK {ack_pkg.ack_number} while self.seq_num {self.seq_num} from {self.addr}")
+            #    raise Exception
             
             self.seq_num+=1
         
@@ -242,14 +244,17 @@ class StopAndWait():
             else:
                 self.logger.info(f"Got seq_number {pkg.seq_number} from client {self.addr}")
 
-                print ("ACK!", pkg.seq_number)
-                print("ACK",self.ack_num)
-                #if pkg.seq_number == self.ack_num:
-                    #continue
+                print ("SEQ_NUMBER", pkg.seq_number)
+                print("ACK_NUMBER",self.ack_num)
+                if pkg.seq_number == (self.ack_num-1): #Paquete duplicado (caso que ack no llega)
+                    continue
 
-                if self.ack_num > pkg.seq_number + 1:
+                if self.ack_num > pkg.seq_number + 1: 
                     self.logger.info(f"Wrong self.ack_num = {self.ack_num} and  pkg.seq_number + 1 = {pkg.seq_number + 1}")
                     raise Exception
+                
+                if pkg.seq_number == 0: #caso que recibe despues de una retransmicion
+                    self.ack_num=0
 
                 self.send_ack(pkg.seq_number)
 
@@ -276,6 +281,9 @@ class StopAndWait():
             
             self.logger.debug("Timeout: retransmitiendo último paquete")
             self.socket.sendto(self.last_sent_pkg, self.addr)
+            self.seq_num=0
+            self.ack_num=0
+
             self.start_timer()  # Reinicia el temporizador
     
   
