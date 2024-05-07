@@ -122,6 +122,7 @@ class StopAndWait():
             destination_path = args.dst
             self.last_sent_pkg = pkg   
             self.start_timer()
+            print("prendo timer")
             ack_pkg = self.get_ack_receiver()
             
             if not os.path.isdir(destination_path):
@@ -162,6 +163,22 @@ class StopAndWait():
         self.socket.sendto(pkg, self.addr)
         
 
+    def send_ack_replicated(self, seq_number):
+        self.logger.info(f"[{self.addr}] Sending ACK {seq_number}")
+        
+        
+        pkg = Package(
+            type=1,
+            flags=ACK,
+            data_length=0,
+            data=''.encode(),
+            seq_number= seq_number,
+            ack_number=seq_number
+        ).encode_pkg()
+        
+        
+        self.socket.sendto(pkg, self.addr)
+
     def get_ack(self):
         datagram = self.datagram_queue.get(block=True, timeout=CONNECTION_TIMEOUT)
         pkg = Package.decode_pkg(datagram)
@@ -195,8 +212,8 @@ class StopAndWait():
         datagram = self.datagram_queue.get(block=True, timeout=CONNECTION_TIMEOUT)
         pkg = Package.decode_pkg(datagram)
         last_pkg = Package.decode_pkg(self.last_sent_pkg)
-        
-        if pkg.flags == NO_FLAG:
+        print("miro flag")
+        if pkg.flags == ACK:
             if self.timer is not None:
                 self.timer.cancel()
                 print("apago timer")
@@ -310,6 +327,7 @@ class StopAndWait():
                 print(f"[{self.addr}] SEQ_NUMBER", pkg.seq_number)
                 print(f"[{self.addr}] ACK_NUMBER",self.ack_num)
                 if pkg.seq_number == (self.ack_num-1): #Paquete duplicado (caso que ack no llega)
+                    self.send_ack_replicated(pkg.seq_number)
                     continue
 
                 if self.ack_num > pkg.seq_number + 1: 
@@ -346,5 +364,13 @@ class StopAndWait():
 
             self.start_timer()  # Reinicia el temporizador
             print("prendo timer")
-    
+            if Package.decode_pkg(self.last_sent_pkg).flags == NO_FLAG:
+                pkg= self.get_ack()
+            elif Package.decode_pkg(self.last_sent_pkg).flags == SYN:
+                pkg = self.get_synack()
+            elif Package.decode_pkg(self.last_sent_pkg).flags == START_TRANSFER:
+                if Package.decode_pkg(self.last_sent_pkg).type == DOWNLOAD_TYPE:
+                    pkg = self.get_ack_receiver()
+                else:
+                    pkg= self.get_ack()
   
