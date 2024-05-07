@@ -30,7 +30,8 @@ class SelectiveRepeat():
                          
         self.logger = logger
 
-        self.timer = None # TODO: tenés que tener un timer por cada paquete en vuelo
+        self.timer = None # Timer que se usa para el handshake y para el FIN
+        self.timers = {} # Map(seq_number, thread.Timer)
         self.last_sent_pkg = None  # Almacena el último paquete enviado. TODO: debería ser un map esto también
         
     # TODO: hay cosas que siguen rompiendo en stop and wait. Traer los cambios acá cuando funcione    
@@ -261,8 +262,9 @@ class SelectiveRepeat():
                     #A diferenca de SW, mando ACK igual, aunque este en desorden
                     #Que no me cambie el ack actual! Yo sigo esperando el paquete perdido.
                     self.send_acknowledge('ACK', pkg.seq_number)
-                    self.logger.info(f"Wrong self.ack_num = {self.ack_num} and  pkg.seq_number + 1 = {pkg.seq_number + 1}")
-                    raise Exception
+                    # TODO: que es esto???????
+                    # self.logger.info(f"Wrong self.ack_num = {self.ack_num} and  pkg.seq_number + 1 = {pkg.seq_number + 1}")
+                    # raise Exception
                 
                 if pkg.seq_number == 0: #caso que recibe despues de una retransmicion
                     self.ack_num=0
@@ -279,14 +281,23 @@ class SelectiveRepeat():
             
                 
         self.logger.info(f"[{self.addr}] File {file_name} received")
-    
+        
     def start_timer(self, pkg: Package):
-        # TODO: hacer que se manejen multiples timers
+        """ Esta función la usas en el handshake y el FIN"""
         if self.timer is not None:
             self.timer.cancel()  # Cancela el timer anterior si existe
 
         self.timer = threading.Timer(PKG_TIMEOUT, self.handle_timeout, args=(pkg,))
         self.timer.start()
+    
+    def start_concurrent_timer(self, pkg: Package):
+        """ Esta función la usas para cuando queres tener múltiples timers"""
+        # TODO: hacer que se manejen multiples timers
+        if pkg.seq_number in self.timers and self.timers[pkg.seq_number] is not None:
+            self.timers[pkg.seq_number].cancel()  # Cancela el timer anterior si existe
+
+        self.timers[pkg.seq_number] = threading.Timer(PKG_TIMEOUT, self.handle_timeout, args=(pkg,))
+        self.timers[pkg.seq_number].start()
 
     def handle_timeout(self, pkg: Package):
         """ Se llama cuando se agota el temporizador (timeout) """
@@ -299,7 +310,7 @@ class SelectiveRepeat():
             
             self.socket.sendto(pkg.encode_pkg(), self.addr)
 
-            self.start_timer(pkg) # Reinicia el temporizador para este paquete
+            self.start_concurrent_timer(pkg) # Reinicia el temporizador para este paquete
             # print("prendo timer")
             # if Package.decode_pkg(self.last_sent_pkg).flags == NO_FLAG:
             #     pkg= self.get_ack()
@@ -327,7 +338,9 @@ class SelectiveRepeat():
         
         # Guarda el último paquete enviado para retransmitirlo en caso de timeout
         self.last_sent_pkg = pkg
-        if flag != ACK and flag != SYNACK:
-            self.start_timer(pkg) # TODO: solo el sender tiene que arrancar un timer
+        if flag == NO_FLAG: # Paquetes con data
+            self.start_concurrent_timer(pkg)
+        elif flag == SYN or flag == START_TRANSFER: # Paquetes del sender en el handshake
+            self.start_timer(pkg)
         else:
             self.ack_num += 1
