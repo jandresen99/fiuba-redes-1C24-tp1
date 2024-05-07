@@ -42,7 +42,7 @@ class StopAndWait():
             
             # self.logger.info(f"New package from client {self.addr}")
             
-            # Checkeo que recibí el paquete que esperababb
+            # Checkeo que recibí el paquete que esperaba
             if self.ack_num != 0 and pkg.seq_number != self.ack_num:
                 self.handle_unordered_package(pkg.seq_number)
                 continue # Dropeo el paquete y vuelvo a esperar mensajes
@@ -51,11 +51,11 @@ class StopAndWait():
             if pkg.flags == SYN: 
                 self.logger.info(f"[{self.addr}] Received SYN")
                 #self.ack_num = pkg.seq_number + 1
-                self.acknowledge_connection()
+                self.send_acknowledge('SYNACK', None)
             
             if pkg.flags == START_TRANSFER:
                 self.logger.info(f"[{self.addr}] Received START_TRANSFER")
-                self.send_ack(pkg.seq_number)
+                self.send_acknowledge('ACK', pkg.seq_number)
                 
                 
                 #self.ack_num = pkg.seq_number + 1
@@ -71,7 +71,6 @@ class StopAndWait():
                     self.send_file(self.storage + "/" + pkg.data.decode())
                     notTransfering = False
     
-
     def start_client(self, client_type, args):
         # Primer mensaje solo tiene el SYN en 1 y si es de tipo download o upload
         # El server contesta con un SYN 1 y el ACK
@@ -90,25 +89,15 @@ class StopAndWait():
         
         #datagram = self.datagram_queue.get(block=True, timeout=CONNECTION_TIMEOUT)
         #received_pkg = Package.decode_pkg(datagram)
-        synack_pkg = self.get_synack()
+        synack_pkg = self.get_acknowledge()
         
         #self.logger.info(f"Received data from server: {received_pkg}")
         file_name = args.name
         self.seq_num += 1
         #self.ack_num = received_pkg.ack_number + 1
-        pkg = Package(
-            type=client_type,   
-            flags=START_TRANSFER, 
-            data_length=len(file_name),
-            data=file_name.encode(),
-            seq_number=self.seq_num,
-            ack_number=self.ack_num
-        ).encode_pkg()
-        
-        self.logger.info(f"[{self.addr}] Sending START_TRANSFER")
-        self.socket.sendto(pkg, self.addr)
 
-        
+        self.send_package(client_type, START_TRANSFER, len(file_name), file_name.encode(), self.seq_num, self.ack_num)       
+        self.logger.info(f"[{self.addr}] Sending START_TRANSFER")
 
         self.seq_num+=1
 
@@ -125,7 +114,7 @@ class StopAndWait():
             self.last_sent_pkg = pkg   
             self.start_timer()
             print("prendo timer")
-            ack_pkg = self.get_ack_receiver()
+            ack_pkg = self.get_acknowledge() #Era get_ack_receiver()
             
             if not os.path.isdir(destination_path):
                 os.makedirs(destination_path, exist_ok=True)
@@ -133,55 +122,24 @@ class StopAndWait():
             self.receive_file(destination_path, file_name)
 
 
-    def acknowledge_connection(self):
-        self.logger.info(f"[{self.addr}] Sending SYNACK")
-        pkg = Package(
-            type=1,
-            flags=SYN,
-            data_length=0,
-            data=''.encode(),
-            seq_number= 0,
-            ack_number=self.ack_num
-        ).encode_pkg()
-        
-        self.socket.sendto(pkg, self.addr)
-        
-        self.seq_num+=1
+    def send_acknowledge(self, type, seq_number):
+        if type == 'SYNACK':
+            self.logger.info(f"[{self.addr}] Sending SYNACK")
+            self.send_package(1, SYN, 0, ''.encode(), 0, self.ack_num) 
+            self.seq_num+=1
+       
+        if type == 'ACK':  
+            self.logger.info(f"[{self.addr}] Sending ACK {seq_number}")
+            self.send_package(1, ACK, 0, ''.encode(), seq_number, seq_number)       
+            self.ack_num +=1
+            self.seq_num+=1
 
-    def send_ack(self, seq_number):
-        self.logger.info(f"[{self.addr}] Sending ACK {seq_number}")
-        self.ack_num +=1
-        self.seq_num+=1
-        pkg = Package(
-            type=1,
-            flags=ACK,
-            data_length=0,
-            data=''.encode(),
-            seq_number= seq_number,
-            ack_number=seq_number
-        ).encode_pkg()
-        
-        
-        self.socket.sendto(pkg, self.addr)
-        
+        if type == 'DUPLICATE_ACK':
+            ##No aumento contadores
+            self.logger.info(f"[{self.addr}] Sending ACK {seq_number}")
+            self.send_package(1, ACK, 0, ''.encode(), seq_number, seq_number)       
 
-    def send_ack_replicated(self, seq_number):
-        self.logger.info(f"[{self.addr}] Sending ACK {seq_number}")
-        
-        
-        pkg = Package(
-            type=1,
-            flags=ACK,
-            data_length=0,
-            data=''.encode(),
-            seq_number= seq_number,
-            ack_number=seq_number
-        ).encode_pkg()
-        
-        
-        self.socket.sendto(pkg, self.addr)
-
-    def get_ack(self):
+    def get_acknowledge(self):
         datagram = self.datagram_queue.get(block=True, timeout=CONNECTION_TIMEOUT)
         pkg = Package.decode_pkg(datagram)
         last_pkg = Package.decode_pkg(self.last_sent_pkg)
@@ -194,11 +152,6 @@ class StopAndWait():
                 #self.start_timer()  #Reinicia el timer porque recibio un ACK
                 self.ack_num+=1
             return pkg
-    
-    def get_synack(self):
-        datagram = self.datagram_queue.get(block=True, timeout=CONNECTION_TIMEOUT)
-        pkg = Package.decode_pkg(datagram)
-        last_pkg = Package.decode_pkg(self.last_sent_pkg)
         
         if pkg.flags == SYN:
             if pkg.ack_number == last_pkg.seq_number: #caso de ack no duplicado
@@ -210,40 +163,12 @@ class StopAndWait():
                 self.ack_num+=1
             return pkg
         
-    def get_ack_receiver(self):
-        datagram = self.datagram_queue.get(block=True, timeout=CONNECTION_TIMEOUT)
-        pkg = Package.decode_pkg(datagram)
-        last_pkg = Package.decode_pkg(self.last_sent_pkg)
-        print("miro flag")
-        if pkg.flags == ACK:
-            if self.timer is not None:
-                self.timer.cancel()
-                print("apago timer")
-            #if pkg.ack_number == last_pkg.seq_number: #caso de ack no duplicado
-            #self.timer.cancel()  #Apago el timer porque recibio un ACK
-            self.ack_num+=1
-            return pkg
-        else:
-            print("otro flag")
-
-    
-
     def handle_unordered_package(self, seq_number):
         self.logger.info(f"Unordered package from client {self.addr}")
         self.logger.info(f"Expected seq_number {self.ack_num}")
-        self.logger.info(f"Got seq_number {seq_number}")
-        
-        pkg = Package(
-            type=1, # TODO: creo que el type puede ser un flag y listo
-            flags=NO_FLAG,
-            data_length=0,
-            data=''.encode(),
-            seq_number= 0,
-            ack_number= self.ack_num
-        ).encode_pkg()
-        
-        self.socket.sendto(pkg, self.addr)
-        
+        self.logger.info(f"Got seq_number {seq_number}")        
+        self.send_package(1, NO_FLAG, 0, ''.encode(), 0, self.ack_num)
+              
 
     def push(self, datagram: bytes):    
         self.datagram_queue.put(datagram)
@@ -258,18 +183,9 @@ class StopAndWait():
             #self.seq_num += 1
             #self.ack_num += 1
             data_length = len(data)
-
-            pkg = Package(
-                type=2,
-                flags=NO_FLAG, 
-                data_length=data_length,
-                data=data,
-                seq_number=self.seq_num,
-                ack_number=self.ack_num
-            )
-
+            self.send_package(2, NO_FLAG, data_length, data, self.seq_number, self.seq_number)      
             self.logger.info(f"[{self.addr}] Sending {data_length} bytes")
-            self.socket.sendto(pkg.encode_pkg(), self.addr)
+          
             
 
             # Guarda el último paquete enviado para retransmitirlo en caso de timeout
@@ -289,22 +205,12 @@ class StopAndWait():
         
         #self.seq_num += 1
         #self.ack_num += 1
-
-        pkg = Package(
-                type=2,
-                flags=FIN, 
-                data_length=0,
-                data=''.encode(),
-                seq_number=self.seq_num,
-                ack_number=0 # TODO: por ahora no le da pelota a esto
-            )
-
+        self.send_package(2, FIN, 0, ''.encode(), self.seq_number, 0)      
         self.logger.info(f"[{self.addr}] File size remaining: {file_size}")
         self.logger.info(f"[{self.addr}] Sending FIN")
         if self.timer is not None:
             self.timer.cancel() # Apago timer 
-            print("apago timer")
-        self.socket.sendto(pkg.encode_pkg(), self.addr)
+            print("apago timer")        
         
         self.seq_num+=1
         
@@ -318,7 +224,7 @@ class StopAndWait():
 
             if pkg.flags == FIN:
                 print("recibo FIN y mando ACK", pkg.seq_number)
-                self.send_ack(pkg.seq_number)
+                self.send_acknowledge('ACK', pkg.seq_number)
                 if self.timer is not None:
                     self.timer.cancel()
                     print("apago timer")
@@ -326,14 +232,14 @@ class StopAndWait():
                 
                 keep_receiving = False
             if pkg.flags == START_TRANSFER:
-                self.send_ack_replicated(pkg.seq_number)
+                self.send_acknowledge('DUPLICATE_ACK', pkg.seq_number)
             else:
                 self.logger.info(f"[{self.addr}] Received package {pkg.seq_number}")
 
                 print(f"[{self.addr}] SEQ_NUMBER", pkg.seq_number)
                 print(f"[{self.addr}] ACK_NUMBER",self.ack_num)
                 if pkg.seq_number == (self.ack_num-1): #Paquete duplicado (caso que ack no llega)
-                    self.send_ack_replicated(pkg.seq_number)
+                    self.send_acknowledge('DUPLICATE_ACK', pkg.seq_number)
                     continue
 
                 if self.ack_num > pkg.seq_number + 1: 
@@ -343,7 +249,7 @@ class StopAndWait():
                 if pkg.seq_number == 0: #caso que recibe despues de una retransmicion
                     self.ack_num=0
 
-                self.send_ack(pkg.seq_number)
+                self.send_acknowledge('ACK', pkg.seq_number)
 
                 file.write(pkg.data)
                 
@@ -373,10 +279,20 @@ class StopAndWait():
             # if Package.decode_pkg(self.last_sent_pkg).flags == NO_FLAG:
             #     pkg= self.get_ack()
             # elif Package.decode_pkg(self.last_sent_pkg).flags == SYN:
-            #     pkg = self.get_synack()
+            #     pkg = self.get_acknowledge()
             # elif Package.decode_pkg(self.last_sent_pkg).flags == START_TRANSFER:
             #     if Package.decode_pkg(self.last_sent_pkg).type == DOWNLOAD_TYPE:
-            #         pkg = self.get_ack_receiver()
+            #         pkg = self.get_acknowledge() ##Era get_ack_receiver()
             #     else:
             #         pkg= self.get_ack()
   
+    def send_package(self, type, flag, data_length, data, seq_number, ack_number):
+        pkg = Package(
+            type=type,   
+            flags=flag, 
+            data_length=data_length,
+            data=data,
+            seq_number=seq_number,
+            ack_number=ack_number
+        ).encode_pkg()        
+        self.socket.sendto(pkg, self.addr)
