@@ -4,10 +4,13 @@ from logging import Logger
 import queue
 import os
 
+
 from lib.package import Package
 from lib.values import *
 from lib.stop_and_wait import StopAndWait
 from lib.selective_repeat import SelectiveRepeat
+
+import random # TODO: borrar esto
 
 class Server:
     """Se encarga de recibir todos los mensajes, instanciar nuevos clientes, 
@@ -44,44 +47,53 @@ class Server:
            dirige los mensajes a los clientes correspondientes"""
            
         while True:
-
             datagram, addr = self.socket.recvfrom(BUFFER_SIZE)
-            #print (datagram)
-            # self.logger.debug(f"Arrived: {Package.decode_pkg(datagram)}, from {addr}")
-            data = (Package.decode_pkg(datagram).data).decode('utf-8')
             
-            print("Clients:", self.clients)
-
-            
-
-            
+            ####################################################################
+            # TODO: borrar esto
+            # Dropeo el 50% de los paquetes para testear
+            rand_num = random.random() # Entre 0 y 1
+            if rand_num < 0:
+                num_package = Package.decode_pkg(datagram).seq_number
+                print(f"\n[DROP] Se perdió el package {num_package} proveniente de {addr}")
+                print(f"Flags: {Package.decode_pkg(datagram).flags}\n")
+                continue
+            ####################################################################
+    
             if addr in self.clients:
                 self.logger.info(f"Old client: {addr}")
                 self.clients[addr].push(datagram)
             else:
-
-                self.logger.info(f"New client: {addr}")                
-                if STOP_AND_WAIT in data:
-                    self.logger.debug("Received 'Stop & Wait' protocol from client")
-                    new_client = StopAndWait(addr, self.logger, self.storage)
-                elif SELECTIVE_REPEAT in data:
-                    self.logger.debug("Received 'Selective Repeat' protocol from client")
-                    new_client = SelectiveRepeat(addr, self.logger, self.storage)
+                self.handle_new_client(addr, datagram)
                 
-
-                new_client.push(datagram)
-                self.clients[addr] = new_client
                 
-                thread = Thread(target=self.start_new_client, args=(addr,))
-                self.threads[addr] = thread
-                thread.start()
+    def handle_new_client(self, addr, datagram):
+        # El primer mensaje recibido siempre tiene el nombre del protocolo a usar
+        protocol_name = (Package.decode_pkg(datagram).data).decode('utf-8')
+        
+        if protocol_name == STOP_AND_WAIT:
+            self.logger.info(f"[NEW CLIENT] {addr} using 'Stop & Wait' protocol")
+            new_client = StopAndWait(addr, self.logger, self.storage)
+        elif protocol_name == SELECTIVE_REPEAT:
+            self.logger.info(f"[NEW CLIENT] {addr} using 'Selective Repeat' protocol")
+            new_client = SelectiveRepeat(addr, self.logger, self.storage)
+        else:
+            raise ValueError(f"Unknown protocol: {protocol_name}")
+        
+        new_client.push(datagram)
+        self.clients[addr] = new_client
+        # Inicializo el thread del cliente
+        thread = Thread(target=self.start_new_client, args=(addr,))
+        self.threads[addr] = thread
+        thread.start()
+        
                 
     def start_new_client(self, addr):
         """Solo para definir una función para que empiezen los threads los threads"""
         try:
             self.clients[addr].start_server()
         except queue.Empty: # TODO: deberias lanzar una excepcion cuando se pasan los tries
-            self.logger.info(f"Lost connection with client: {addr}")
+            self.logger.info(f"[{addr}] Lost connection with client")
         
     def stop(self):
         self.socket.close()

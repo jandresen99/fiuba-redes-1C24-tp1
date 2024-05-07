@@ -53,7 +53,3 @@ class Package:
         
         return Package(type, flags, data_length, data, seq_number, ack_number)
     
-    @classmethod
-    def handshake_pkg(cls, type, protocol):
-        return Package(type, SYN, len(protocol.name.encode()), protocol.name.encode()).encode_pkg()
-    
