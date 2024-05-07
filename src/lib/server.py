@@ -55,8 +55,8 @@ class Server:
             rand_num = random.random() # Entre 0 y 1
             if rand_num < 0:
                 num_package = Package.decode_pkg(datagram).seq_number
-                print(f"\n[DROP] Se perdió el package {num_package} proveniente de {addr}")
-                print(f"Flags: {Package.decode_pkg(datagram).flags}\n")
+                self.logger.debug(f"\n[DROP] Se perdió el package {num_package} proveniente de {addr}")
+                self.logger.debug(f"Flags: {Package.decode_pkg(datagram).flags}\n")
                 continue
             ####################################################################
     
