@@ -108,6 +108,7 @@ class SelectiveRepeat():
                 print(f"[{self.addr}] Recibí un ACK para el paquete {pkg.ack_number}")
                 if pkg.ack_number in self.timers:
                     self.timers[pkg.ack_number].cancel()
+                    self.paquetes_en_vuelo -= 1
                 else:
                     print(f"[{self.addr}] Recibí un FINACK")
                     self.timer.cancel()
