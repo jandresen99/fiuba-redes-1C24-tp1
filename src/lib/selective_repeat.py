@@ -25,7 +25,13 @@ class SelectiveRepeat():
         # Contadores globales para el envío ordenado y checkeo de errores
         self.seq_num = 0
         self.ack_num = 0 # Se determina con el primer paquete recibido
-                        
+        
+        self.window_size = 4
+        self.paquetes_en_vuelo = 0
+        self.awaited_ack = 0
+
+        self.arriving_pkt_buffer = {}
+                         
         self.logger = logger
 
         self.timer = None
@@ -171,6 +177,7 @@ class SelectiveRepeat():
                     # print("apago timer")
                 #self.start_timer()  #Reinicia el timer porque recibio un ACK
                 self.ack_num+=1
+                self.paquetes_en_vuelo -= 1
             return pkg
         
         if pkg.flags == SYN:
@@ -218,28 +225,37 @@ class SelectiveRepeat():
             data = file.read(DATA_SIZE)
             #self.seq_num += 1
             data_length = len(data)
-            self.send_package(2, NO_FLAG, data_length, data, self.seq_num, self.seq_num)      
-            self.logger.info(f"[{self.addr}] Sending {data_length} bytes in package {self.seq_num}")
 
-            file_size -= data_length
 
-            _ = self.get_acknowledge()
+            while (self.paquetes_en_vuelo < self.window_size):
 
-            #if ack_pkg.ack_number == self.seq_num:
-            #    self.logger.info(f"Duplicated ACK {ack_pkg.ack_number} while self.seq_num {self.seq_num} from {self.addr}")
-            #    raise Exception
+                self.send_package(2, NO_FLAG, data_length, data, self.seq_num, self.seq_num)      
+                ##Agregar paquetes en vuelo es solo una vez que se es sender (NO agregar a send_package() )
+                self.paquetes_en_vuelo += 1
+                self.logger.info(f"[{self.addr}] Sending {data_length} bytes in package {self.seq_num}")
+
+                file_size -= data_length
+
+                _ = self.get_acknowledge()
+
+                #if ack_pkg.ack_number == self.seq_num:
+                #    self.logger.info(f"Duplicated ACK {ack_pkg.ack_number} while self.seq_num {self.seq_num} from {self.addr}")
+                #    raise Exception
+                
+                #self.seq_num+=1
+        
+        ##Si todavia no tengo lugar en paquetes_en_vuelo para el FIN, deberia esperar a un ACK...
+        if(self.paquetes_en_vuelo < self.window_size):
+            #self.seq_num += 1
+            self.send_package(2, FIN, 0, ''.encode(), self.seq_num, self.ack_num)      
+            self.paquetes_en_vuelo += 1
+            self.logger.info(f"[{self.addr}] File size remaining: {file_size}")
+            self.logger.info(f"[{self.addr}] Sending FIN")
+            if self.timer is not None:
+                self.timer.cancel() # Apago timer 
+                # print("apago timer")        
             
             #self.seq_num+=1
-        
-        #self.seq_num += 1
-        self.send_package(2, FIN, 0, ''.encode(), self.seq_num, self.ack_num)      
-        self.logger.info(f"[{self.addr}] File size remaining: {file_size}")
-        self.logger.info(f"[{self.addr}] Sending FIN")
-        if self.timer is not None:
-            self.timer.cancel() # Apago timer 
-            # print("apago timer")        
-        
-        #self.seq_num+=1
         
     def receive_file(self, destination_path, file_name):
         self.logger.info(f"[{self.addr}] Beginning to receive file")
@@ -269,6 +285,15 @@ class SelectiveRepeat():
                 # Caso ideal: me llego el paquete en el orden correcto
                 if pkg.seq_number == self.ack_num:
                     file.write(pkg.data)
+                    #Si el paquete que me llegó era el perdido que esperaba, entonces mando el ACK
+                    #me fijo lo que tenga en el buffer y lo escribo en el archivo
+                    if(pkg.seq_number + 1) in self.arriving_pkt_buffer:
+                        pkg_in_buffer = pkg.seq_number + 1
+                        while (pkg_in_buffer) in self.arriving_pkt_buffer:
+                            pkg = self.arriving_pkt_buffer.pop(pkg_in_buffer)
+                            file.write(pkg.data)
+                            pkg_in_buffer += 1
+                    #Una vez escrito el archivo de forma ordenada, mando el ACK pendiente
                     self.send_acknowledge('ACK', pkg.seq_number)
                     
                 
@@ -277,7 +302,9 @@ class SelectiveRepeat():
                     self.send_acknowledge('DUPLICATE_ACK', pkg.seq_number)
                     continue
 
+                #El receiver recibe un paquete fuera de orden. Lo guardo en el buffer.
                 if self.ack_num > pkg.seq_number + 1: 
+                    self.arriving_pkt_buffer[pkg.seq_number] = pkg #Deberia usar el buffer para reordenar
                     self.logger.info(f"Wrong self.ack_num = {self.ack_num} and  pkg.seq_number + 1 = {pkg.seq_number + 1}")
                     raise Exception
                 
