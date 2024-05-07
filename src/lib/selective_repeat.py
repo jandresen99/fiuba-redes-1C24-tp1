@@ -63,8 +63,9 @@ class SelectiveRepeat():
                     self.send_file(self.storage + "/" + pkg.data.decode())
                     notTransfering = False
                     
-            if pkg.flags == ACK: # muerte
+            if pkg.flags == ACK: # muerte ACÁ SOLO ENTRA EL SENDER (ENVIANDO UN FILE)
                 print(f"[{self.addr}] Recibí un ACK del paquete {pkg.ack_number}")
+                self.timers[pkg.seq_number].cancel()
     
     def start_client(self, client_type, args):
         print("Selective Repeat")
@@ -91,7 +92,7 @@ class SelectiveRepeat():
             if pkg.flags == ACK and not startedTransfer:
                 self.logger.info(f"[{self.addr}] Recibí ACK del START_TRANSFER")
                 self.ack_num+=1
-                self.timer.cancel()
+                self.timer.cancel() # Sino sigue reenviando START_TRANSFER para siempre
 
                 if client_type == DOWNLOAD_TYPE:
                     notDownloadingFile = True
@@ -102,9 +103,14 @@ class SelectiveRepeat():
                 if client_type == UPLOAD_TYPE:
                     startedTransfer = True
                     threading.Thread(target=self.send_file, args=(args.src,)).start()
-        
-            if pkg.flags == ACK: # muerte
-                print("[{self.addr}] Recibí un ACK")
+            
+            elif pkg.flags == ACK: # muerte ACÁ SOLO ENTRA EL SENDER (ENVIANDO UN FILE)
+                print(f"[{self.addr}] Recibí un ACK para el paquete {pkg.ack_number}")
+                if pkg.ack_number in self.timers:
+                    self.timers[pkg.ack_number].cancel()
+                else:
+                    print(f"[{self.addr}] Recibí un FINACK")
+                    self.timer.cancel()
 
     def send_acknowledge(self, type, seq_number):
         if type == 'SYNACK':
@@ -176,13 +182,11 @@ class SelectiveRepeat():
         self.datagram_queue.put(datagram)
     
     def send_file(self, file_path):
-        # TODO: creo que vamos a tener que lanzar otro thread para enviar el archivo porque ahora
-        # te van a ir llegando varios ACKs, no podés esperarlos acá
         file, file_size = prepare_file_for_transmission(file_path)
 
         while file_size > 0:
             # El busy wait de tu vida es este. Si no podés mandar más paquetes no hagas nada
-            while (self.paquetes_en_vuelo < self.window_size):
+            while (self.paquetes_en_vuelo < self.window_size and file_size > 0):
                 self.logger.info(f"\n[{self.addr}] File size remaining: {file_size}")
                 data = file.read(DATA_SIZE)
                 data_length = len(data)
@@ -194,9 +198,7 @@ class SelectiveRepeat():
                 self.logger.info(f"[{self.addr}] Paquetes en vuelo: {self.paquetes_en_vuelo}\n")
                 
                 file_size -= data_length
-
-                # _ = self.get_acknowledge()
-
+                
                 #if ack_pkg.ack_number == self.seq_num:
                 #    self.logger.info(f"Duplicated ACK {ack_pkg.ack_number} while self.seq_num {self.seq_num} from {self.addr}")
                 #    raise Exception
@@ -301,6 +303,7 @@ class SelectiveRepeat():
             self.timers[pkg.seq_number].cancel()  # Cancela el timer anterior si existe
 
         self.timers[pkg.seq_number] = threading.Timer(PKG_TIMEOUT, self.handle_timeout, args=(pkg,))
+        print(f"Arranco un timer para el paquete {pkg.seq_number}")
         self.timers[pkg.seq_number].start()
 
     def handle_timeout(self, pkg: Package):
@@ -308,8 +311,8 @@ class SelectiveRepeat():
         if self.last_sent_pkg is not None:
             
             self.logger.info(
-                f"[{self.addr}] RETRANSMIT\n" +
-                f"seq_num: {pkg.seq_number} | flag: {pkg.flags}"
+                f"[{self.addr}] RETRANSMITO " +
+                f"paquete: {pkg.seq_number} | flag: {pkg.flags}"
             )
             
             self.socket.sendto(pkg.encode_pkg(), self.addr)
@@ -345,7 +348,7 @@ class SelectiveRepeat():
         self.last_sent_pkg = pkg
         if flag == NO_FLAG: # Paquetes con data
             self.start_concurrent_timer(pkg)
-        elif flag == SYN or flag == START_TRANSFER: # Paquetes del sender en el handshake
+        elif flag == SYN or flag == START_TRANSFER or flag == FIN: # Paquetes del sender en el handshake
             self.start_timer(pkg)
         else:
             self.ack_num += 1
