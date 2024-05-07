@@ -26,7 +26,7 @@ class StopAndWait():
         # Contadores globales para el envío ordenado y checkeo de errores
         self.seq_num = 0
         self.ack_num = 0 # Se determina con el primer paquete recibido
-        self.tries_send = 0
+        
         
         self.logger = logger
 
@@ -37,7 +37,7 @@ class StopAndWait():
         """ Empieza a consumir paquetes"""
         notTransfering=True
         while notTransfering:
-            datagram = self.datagram_queue.get(block=True, timeout=CONNECTION_TIMEOUT)
+            datagram = self.datagram_queue.get(block=True, timeout=CONNECTION_TIMEOUT) #CHECK
             pkg = Package.decode_pkg(datagram)
             
             # self.logger.info(f"New package from client {self.addr}")
@@ -62,6 +62,7 @@ class StopAndWait():
 
                 if pkg.type == UPLOAD_TYPE:
                     self.logger.info(f"[{self.addr}] Client is UPLOADING file")
+                    
                     self.receive_file(self.storage, pkg.data.decode())
                     notTransfering = False
                 
@@ -81,7 +82,7 @@ class StopAndWait():
         self.last_sent_pkg = handshake_pkg   
         self.start_timer()
         print("prendo timer")
-        synack_pkg = self.get_synack()
+        
         
         # Esperar respuesta
         # TODO: hay que hacer un try-catch para que no explote cuando hay un
@@ -89,6 +90,7 @@ class StopAndWait():
         
         #datagram = self.datagram_queue.get(block=True, timeout=CONNECTION_TIMEOUT)
         #received_pkg = Package.decode_pkg(datagram)
+        synack_pkg = self.get_synack()
         
         #self.logger.info(f"Received data from server: {received_pkg}")
         file_name = args.name
@@ -221,6 +223,8 @@ class StopAndWait():
             #self.timer.cancel()  #Apago el timer porque recibio un ACK
             self.ack_num+=1
             return pkg
+        else:
+            print("otro flag")
 
     
 
@@ -301,7 +305,7 @@ class StopAndWait():
             self.timer.cancel() # Apago timer 
             print("apago timer")
         self.socket.sendto(pkg.encode_pkg(), self.addr)
-        print("MY SEQ NUM ES", self.seq_num)
+        
         self.seq_num+=1
         
     def receive_file(self, destination_path, file_name):
@@ -321,6 +325,8 @@ class StopAndWait():
                 
                 
                 keep_receiving = False
+            if pkg.flags == START_TRANSFER:
+                self.send_ack_replicated(pkg.seq_number)
             else:
                 self.logger.info(f"[{self.addr}] Received package {pkg.seq_number}")
 
@@ -364,13 +370,13 @@ class StopAndWait():
 
             self.start_timer()  # Reinicia el temporizador
             print("prendo timer")
-            if Package.decode_pkg(self.last_sent_pkg).flags == NO_FLAG:
-                pkg= self.get_ack()
-            elif Package.decode_pkg(self.last_sent_pkg).flags == SYN:
-                pkg = self.get_synack()
-            elif Package.decode_pkg(self.last_sent_pkg).flags == START_TRANSFER:
-                if Package.decode_pkg(self.last_sent_pkg).type == DOWNLOAD_TYPE:
-                    pkg = self.get_ack_receiver()
-                else:
-                    pkg= self.get_ack()
+            # if Package.decode_pkg(self.last_sent_pkg).flags == NO_FLAG:
+            #     pkg= self.get_ack()
+            # elif Package.decode_pkg(self.last_sent_pkg).flags == SYN:
+            #     pkg = self.get_synack()
+            # elif Package.decode_pkg(self.last_sent_pkg).flags == START_TRANSFER:
+            #     if Package.decode_pkg(self.last_sent_pkg).type == DOWNLOAD_TYPE:
+            #         pkg = self.get_ack_receiver()
+            #     else:
+            #         pkg= self.get_ack()
   
