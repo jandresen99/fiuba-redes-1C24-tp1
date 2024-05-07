@@ -25,6 +25,8 @@ class SelectiveRepeat():
         self.window_size = 4
         self.paquetes_en_vuelo = 0
         self.awaited_ack = 0
+        self.lastest_received_ack = 0
+        self.already_acked_pkgs = {}
 
         self.arriving_pkt_buffer = {}
                          
@@ -136,6 +138,9 @@ class SelectiveRepeat():
         
         if pkg.flags == ACK:
             print(f"[{self.addr}] Recibí un ACK para el paquete {pkg.ack_number}")
+            self.lastest_received_ack = pkg.ack_number
+            self.already_acked_pkgs[self.lastest_received_ack] = pkg
+
             if pkg.ack_number in self.timers:
                 self.timers[pkg.ack_number].cancel()
                 self.paquetes_en_vuelo -= 1
@@ -177,24 +182,37 @@ class SelectiveRepeat():
         # TODO: en selective repeat devolver ACKs independientemente del desorden
         # y guardar data en buffer
         self.logger.info(f"Unordered package from client {self.addr}")
-        self.logger.info(f"Expected seq_number {self.ack_num}")
-        self.logger.info(f"Got seq_number {seq_number}")                    
+        self.logger.info(f"Expected seq_number {self.awaited_ack}")
+        self.logger.info(f"Got seq_number {self.lastest_received_ack}")       
+
+        self.get_acknowledge()
+        if (self.awaited_ack != self.lastest_received_ack):
+                self.handle_unordered_package(self.lastest_received_ack)
+                
+        else:            
+            self.logger.info(f"Got awaited ACK {self.awaited_ack}")
+            self.awaited_ack += 1
+            
+        return
+           
+
 
     def push(self, datagram: bytes):    
         self.datagram_queue.put(datagram)
     
     def send_file(self, file_path):
         file, file_size = prepare_file_for_transmission(file_path)
-
+        loop_inicial = True
         while file_size > 0:
             self.logger.info(f"\n[{self.addr}] File size remaining: {file_size}")
             
-            while (self.paquetes_en_vuelo < self.window_size): 
+            while ((self.paquetes_en_vuelo < self.window_size)):             
                 data = file.read(DATA_SIZE)
                 data_length = len(data)               
                 # El orden de los prints altera el producto
                 self.logger.info(f"[{self.addr}] Sending {data_length} bytes in package {self.seq_num}")
                 self.send_package(2, NO_FLAG, data_length, data, self.seq_num, self.seq_num)      
+              
                 self.paquetes_en_vuelo += 1 # Agregar paquetes en vuelo es solo una vez que se es sender (NO agregar a send_package() )
                 self.logger.info(f"[{self.addr}] Paquetes en vuelo: {self.paquetes_en_vuelo}\n")
                 
@@ -205,8 +223,23 @@ class SelectiveRepeat():
                 #    raise Exception
                 
                 #self.seq_num+=1
-                
+            
+           
             self.get_acknowledge()
+            if (self.awaited_ack < self.lastest_received_ack):
+                self.handle_unordered_package(self.lastest_received_ack)
+                
+                #Voy checkeando en orden que paqutes ya fueron ackeados
+                while pkg in self.already_acked_pkgs:
+                    #Si cumplen con el orden sigo
+                    if pkg.seq_number == self.awaited_ack:
+                        self.paquetes_en_vuelo -= 1
+                        self.awaited_ack += 1
+                        self.lastest_received_ack = pkg.seq_number
+                        pkg += 1
+                    #Si no cumplen con el orden, significa que sigo teniendo algo perdido
+                    else:
+                        self.handle_unordered_package(pkg)
         
         print("La cantidad de paquetes en vuelo es: ", self.paquetes_en_vuelo)
         ##Si todavia no tengo lugar en paquetes_en_vuelo para el FIN, deberia esperar a un ACK...
