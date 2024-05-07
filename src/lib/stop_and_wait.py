@@ -35,7 +35,8 @@ class StopAndWait():
         
     def start_server(self):
         """ Empieza a consumir paquetes"""
-        while True:
+        notTransfering=True
+        while notTransfering:
             datagram = self.datagram_queue.get(block=True, timeout=CONNECTION_TIMEOUT)
             pkg = Package.decode_pkg(datagram)
             
@@ -62,10 +63,12 @@ class StopAndWait():
                 if pkg.type == UPLOAD_TYPE:
                     self.logger.info(f"[{self.addr}] Client is UPLOADING file")
                     self.receive_file(self.storage, pkg.data.decode())
+                    notTransfering = False
                 
                 if pkg.type == DOWNLOAD_TYPE:
                     self.logger.info(f"[{self.addr}] Client is DOWNLOADING file")
                     self.send_file(self.storage + "/" + pkg.data.decode())
+                    notTransfering = False
     
 
     def start_client(self, client_type, args):
@@ -83,10 +86,10 @@ class StopAndWait():
         # Esperar respuesta
         # TODO: hay que hacer un try-catch para que no explote cuando hay un
         # timeout en el recv
-        print("llegue")
+        
         #datagram = self.datagram_queue.get(block=True, timeout=CONNECTION_TIMEOUT)
         #received_pkg = Package.decode_pkg(datagram)
-        print("llegue")
+        
         #self.logger.info(f"Received data from server: {received_pkg}")
         file_name = args.name
         self.seq_num += 1
