@@ -10,7 +10,7 @@ def main():
         server.start()
         
     except KeyboardInterrupt:
-        print('\nClosing server...')
+        logger.debug('\nClosing server...')
         server.stop()
 
 

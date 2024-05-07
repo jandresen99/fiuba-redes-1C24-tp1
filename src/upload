@@ -11,7 +11,7 @@ def main():
         client.start(args)
         
     except KeyboardInterrupt:
-        print("\nClosing client...")
+        logger.debug("\nClosing client...")
     
 if __name__ == "__main__":
     main()

@@ -10,7 +10,7 @@ def main():
         client.start(args)
         
     except KeyboardInterrupt:
-        print("\nClosing Client...")
+        logger.debug("\nClosing Client...")
     
 if __name__ == "__main__":
     main()

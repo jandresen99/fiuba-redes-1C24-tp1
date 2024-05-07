@@ -66,11 +66,11 @@ class SelectiveRepeat():
                     notTransfering = False
                     
             if pkg.flags == ACK: # muerte ACÁ SOLO ENTRA EL SENDER (ENVIANDO UN FILE)
-                print(f"[{self.addr}] Recibí un ACK del paquete {pkg.ack_number}")
+                self.logger.debug(f"[{self.addr}] Recibí un ACK del paquete {pkg.ack_number}")
                 self.timers[pkg.seq_number].cancel()
     
     def start_client(self, client_type, args):
-        print("Selective Repeat")
+        self.logger.debug("Selective Repeat")
         # Primer mensaje solo tiene el SYN en 1 y si es de tipo download o upload
         # El server contesta con un SYN 1 y el ACK
         # El cliente envía un ACK con SYN 0 y la conexión queda establecida
@@ -108,12 +108,12 @@ class SelectiveRepeat():
                     self.send_file(args.src)
             
             # elif pkg.flags == ACK: # muerte ACÁ SOLO ENTRA EL SENDER (ENVIANDO UN FILE)
-            #     print(f"[{self.addr}] Recibí un ACK para el paquete {pkg.ack_number}")
+            #     self.logger.debug(f"[{self.addr}] Recibí un ACK para el paquete {pkg.ack_number}")
             #     if pkg.ack_number in self.timers:
             #         self.timers[pkg.ack_number].cancel()
             #         self.paquetes_en_vuelo -= 1
             #     else:
-            #         print(f"[{self.addr}] Recibí un FINACK")
+            #         self.logger.debug(f"[{self.addr}] Recibí un FINACK")
             #         if self.timer is not None:
             #             self.timer.cancel()
 
@@ -140,7 +140,7 @@ class SelectiveRepeat():
         pkg = Package.decode_pkg(datagram)
         
         if pkg.flags == ACK:
-            print(f"[{self.addr}] Recibí un ACK para el paquete {pkg.seq_number}")
+            self.logger.debug(f"[{self.addr}] Recibí un ACK para el paquete {pkg.seq_number}")
             self.lastest_received_ack = pkg.seq_number
             self.already_acked_pkgs[pkg.seq_number] = pkg
 
@@ -151,7 +151,7 @@ class SelectiveRepeat():
                 self.timers[pkg.ack_number].cancel()
                 self.paquetes_en_vuelo -= 1
             else:
-                print(f"[{self.addr}] Recibí un FINACK")
+                self.logger.debug(f"[{self.addr}] Recibí un FINACK")
                 self.paquetes_en_vuelo -= 1
                 if self.timer is not None:
                     self.timer.cancel()
@@ -164,7 +164,7 @@ class SelectiveRepeat():
                 #("reinicio timer")
                 if self.timer is not None:
                     self.timer.cancel()
-                    # print("apago timer")
+                    # self.logger.debug("apago timer")
                 #self.start_timer()  #Reinicio el timer porque recibio un ACK
                 self.ack_num+=1
             return pkg
@@ -174,7 +174,7 @@ class SelectiveRepeat():
                 #("reinicio timer")
                 if self.timer is not None:
                     self.timer.cancel()
-                    # print("apago timer")
+                    # self.logger.debug("apago timer")
                 #self.start_timer()  #Reinicio el timer porque recibio un ACK
                 self.ack_num+=1
             return pkg
@@ -215,7 +215,7 @@ class SelectiveRepeat():
             while ((self.paquetes_en_vuelo < self.window_size)):             
                 data = file.read(DATA_SIZE)
                 data_length = len(data)               
-                # El orden de los prints altera el producto
+                # El orden de los self.logger.debugs altera el producto
                 self.logger.info(f"[{self.addr}] Sending {data_length} bytes in package {self.seq_num}")
                 self.send_package(2, NO_FLAG, data_length, data, self.seq_num, self.seq_num)      
               
@@ -254,11 +254,11 @@ class SelectiveRepeat():
                         self.handle_unordered_package(pkg)
         
         ##Si todavia no tengo lugar en paquetes_en_vuelo para el FIN, deberia esperar a un ACK...
-        print("Salgo del loop principal")
+        self.logger.debug("Salgo del loop principal")
         
         enviado_fin = False
         while(self.paquetes_en_vuelo > 0):
-            print("La cantidad de paquetes en vuelo es: ", self.paquetes_en_vuelo)
+            self.logger.debug("La cantidad de paquetes en vuelo es: ", self.paquetes_en_vuelo)
             if (self.paquetes_en_vuelo == (self.window_size - 1) and not enviado_fin):
                 self.send_package(2, FIN, 0, ''.encode(), self.seq_num, self.ack_num)     
                 enviado_fin = True 
@@ -285,7 +285,7 @@ class SelectiveRepeat():
                     else:
                         self.handle_unordered_package(pkg)
    
-        print("Terminé send_file")
+        self.logger.debug("Terminé send_file")
         
     def receive_file(self, destination_path, file_name):
         self.logger.info(f"[{self.addr}] Beginning to receive file")
@@ -302,13 +302,13 @@ class SelectiveRepeat():
             pkg = Package.decode_pkg(datagram)
             
             if pkg.flags == START_TRANSFER: # TODO: checkear como manejarlo dentro de start_server
-                print("START TRANSFER DUPLICATED")
+                self.logger.debug("START TRANSFER DUPLICATED")
                 self.send_acknowledge('DUPLICATE_ACK', pkg.seq_number)
                 
             elif pkg.flags == NO_FLAG: # Recibí bytes del archivo
                 self.logger.info(f"[{self.addr}] Received package {pkg.seq_number}")
-                # print(f"[{self.addr}] SEQ_NUMBER", pkg.seq_number)
-                # print(f"[{self.addr}] ACK_NUMBER",self.ack_num)
+                # self.logger.debug(f"[{self.addr}] SEQ_NUMBER", pkg.seq_number)
+                # self.logger.debug(f"[{self.addr}] ACK_NUMBER",self.ack_num)
                 
                 # TODO: está recibiendo seq = 2 y tiene ack en 0
                 
@@ -347,11 +347,11 @@ class SelectiveRepeat():
             
             elif pkg.flags == FIN:
                 # TODO: meter un handle_fin o end o algo
-                print("recibo FIN y mando ACK", pkg.seq_number)
+                self.logger.debug("recibo FIN y mando ACK", pkg.seq_number)
                 self.send_acknowledge('ACK', pkg.seq_number)
                 if self.timer is not None:
                     self.timer.cancel()
-                    # print("apago timer")
+                    # self.logger.debug("apago timer")
                 
                 keep_receiving = False
             
@@ -373,7 +373,7 @@ class SelectiveRepeat():
             self.timers[pkg.seq_number].cancel()  # Cancela el timer anterior si existe
 
         self.timers[pkg.seq_number] = threading.Timer(PKG_TIMEOUT, self.handle_timeout, args=(pkg,))
-        print(f"Arranco un timer para el paquete {pkg.seq_number}")
+        self.logger.debug(f"Arranco un timer para el paquete {pkg.seq_number}")
         self.timers[pkg.seq_number].start()
 
     def handle_timeout(self, pkg: Package):
@@ -388,7 +388,7 @@ class SelectiveRepeat():
             self.socket.sendto(pkg.encode_pkg(), self.addr)
 
             self.start_concurrent_timer(pkg) # Reinicia el temporizador para este paquete
-            # print("prendo timer")
+            # self.logger.debug("prendo timer")
             # if Package.decode_pkg(self.last_sent_pkg).flags == NO_FLAG:
             #     pkg= self.get_ack()
             # elif Package.decode_pkg(self.last_sent_pkg).flags == SYN:
@@ -409,7 +409,7 @@ class SelectiveRepeat():
             ack_number=ack_number
         )     
     
-        # print(type, flag, seq_number, ack_number)
+        # self.logger.debug(type, flag, seq_number, ack_number)
         self.socket.sendto(pkg.encode_pkg(), self.addr)
         
         self.seq_num += 1
