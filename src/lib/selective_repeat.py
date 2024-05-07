@@ -209,7 +209,6 @@ class SelectiveRepeat():
     
     def send_file(self, file_path):
         file, file_size = prepare_file_for_transmission(file_path)
-        loop_inicial = True
         while file_size > 0:
             self.logger.info(f"\n[{self.addr}] File size remaining: {file_size}")
             
@@ -238,7 +237,7 @@ class SelectiveRepeat():
                 self.handle_unordered_package(self.lastest_received_ack)
                 
                 #Voy checkeando en orden que paqutes ya fueron ackeados
-                while seq_number in self.already_acked_pkgs:
+                for seq_number in self.already_acked_pkgs:
                     #Si cumplen con el orden sigo
                     # while (pkg_in_buffer) in self.arriving_pkt_buffer:
                     #         pkg = self.arriving_pkt_buffer.pop(pkg_in_buffer)
