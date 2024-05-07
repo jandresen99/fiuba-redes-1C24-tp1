@@ -269,21 +269,21 @@ class SelectiveRepeat():
         
             self.get_acknowledge()
             
-            # if (self.awaited_ack < self.lastest_received_ack):
-            #     self.handle_unordered_package(self.lastest_received_ack)
+            if (self.awaited_ack < self.lastest_received_ack):
+                self.handle_unordered_package(self.lastest_received_ack)
                 
-            #     #Voy checkeando en orden que paqutes ya fueron ackeados
-            #     while seq_number in self.already_acked_pkgs:
+                #Voy checkeando en orden que paqutes ya fueron ackeados
+                for seq_number in self.already_acked_pkgs:
     
-            #         pkg = self.already_acked_pkgs.pop(seq_number)
+                    pkg = self.already_acked_pkgs.pop(seq_number)
                     
-            #         if pkg.seq_number == self.awaited_ack:
-            #             self.awaited_ack += 1
-            #             self.lastest_received_ack = pkg.seq_number
-            #             pkg += 1
-            #         #Si no cumplen con el orden, significa que sigo teniendo algo perdido
-            #         else:
-            #             self.handle_unordered_package(pkg)
+                    if pkg.seq_number == self.awaited_ack:
+                        self.awaited_ack += 1
+                        self.lastest_received_ack = pkg.seq_number
+                        pkg += 1
+                    #Si no cumplen con el orden, significa que sigo teniendo algo perdido
+                    else:
+                        self.handle_unordered_package(pkg)
    
         print("Terminé send_file")
         
