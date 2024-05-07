@@ -64,11 +64,15 @@ class StopAndWait():
                     self.logger.info(f"[{self.addr}] Client is UPLOADING file")
                     self.receive_file(self.storage, pkg.data.decode())
                     notTransfering = False
+                    
                 
                 if pkg.type == DOWNLOAD_TYPE:
                     self.logger.info(f"[{self.addr}] Client is DOWNLOADING file")
                     self.send_file(self.storage + "/" + pkg.data.decode())
-                    notTransfering = False    
+                    notTransfering = False   
+                    
+
+            
     
     def start_client(self, client_type, args):
         # Primer mensaje solo tiene el SYN en 1 y si es de tipo download o upload
@@ -90,10 +94,13 @@ class StopAndWait():
                 continue # Dropeo el paquete y vuelvo a esperar mensajes
         
             if pkg.flags == SYNACK:
-                self.send_package(client_type, START_TRANSFER, len(file_name), file_name.encode(), self.seq_num, self.ack_num)       
+                self.send_package(client_type, START_TRANSFER, len(file_name), file_name.encode(), self.seq_num, self.ack_num)
+                self.ack_num+=1       
 
             if pkg.flags == ACK: # El server recibió el start transfer
                 self.logger.info(f"[{self.addr}] Recibí ACK del START_TRANSFER")
+                self.ack_num+=1  
+
                 if client_type == DOWNLOAD_TYPE:
                     notTransfering = False
                     self.receive_file(args.dst, file_name)
@@ -140,17 +147,19 @@ class StopAndWait():
         if type == 'SYNACK':
             self.logger.info(f"[{self.addr}] Sending SYNACK")
             self.send_package(1, SYNACK, 0, ''.encode(), 0, self.ack_num) 
-            self.seq_num += 1
+            #self.seq_num += 1
        
         if type == 'ACK':  
             self.logger.info(f"[{self.addr}] Sending ACK {seq_number}")
             self.send_package(1, ACK, 0, ''.encode(), seq_number, seq_number)       
-            self.seq_num += 1
+            #self.seq_num += 1
 
         if type == 'DUPLICATE_ACK':
             # No aumento contadores
-            self.logger.info(f"[{self.addr}] Sending ACK {seq_number}")
-            self.send_package(1, ACK, 0, ''.encode(), seq_number, seq_number)       
+            self.logger.info(f"[{self.addr}] Sending ACK DUPLICATE {seq_number}")
+            self.send_package(1, ACK, 0, ''.encode(), seq_number, seq_number)
+            self.seq_num-=1 
+            self.ack_num-=1      
 
     def get_acknowledge(self):
         datagram = self.datagram_queue.get(block=True, timeout=CONNECTION_TIMEOUT)
@@ -186,6 +195,11 @@ class StopAndWait():
                 self.ack_num+=1
             return pkg
         
+        if pkg.flags == START_TRANSFER:
+            self.send_acknowledge('DUPLICATE_ACK', pkg.seq_number)
+            return pkg
+
+        
     def handle_unordered_package(self, seq_number):
         """ Puramente para debugging """
         # TODO: en selective repeat devolver ACKs independientemente del desorden
@@ -201,6 +215,7 @@ class StopAndWait():
         file, file_size = prepare_file_for_transmission(file_path)
 
         while file_size > 0:
+
             self.logger.info(f"[{self.addr}] File size remaining: {file_size}")
             data = file.read(DATA_SIZE)
             #self.seq_num += 1
@@ -216,17 +231,17 @@ class StopAndWait():
             #    self.logger.info(f"Duplicated ACK {ack_pkg.ack_number} while self.seq_num {self.seq_num} from {self.addr}")
             #    raise Exception
             
-            self.seq_num+=1
+            #self.seq_num+=1
         
         #self.seq_num += 1
-        self.send_package(2, FIN, 0, ''.encode(), self.seq_num, 0)      
+        self.send_package(2, FIN, 0, ''.encode(), self.seq_num, self.ack_num)      
         self.logger.info(f"[{self.addr}] File size remaining: {file_size}")
         self.logger.info(f"[{self.addr}] Sending FIN")
         if self.timer is not None:
             self.timer.cancel() # Apago timer 
             # print("apago timer")        
         
-        self.seq_num+=1
+        #self.seq_num+=1
         
     def receive_file(self, destination_path, file_name):
         self.logger.info(f"[{self.addr}] Beginning to receive file")
@@ -254,12 +269,13 @@ class StopAndWait():
                 # TODO: está recibiendo seq = 2 y tiene ack en 0
                 
                 # Caso ideal: me llego el paquete en el orden correcto
-                if True: # TODO: demencia #pkg.seq_number == self.ack_num:
-                    self.send_acknowledge('ACK', pkg.seq_number)
+                if pkg.seq_number == self.ack_num:
                     file.write(pkg.data)
+                    self.send_acknowledge('ACK', pkg.seq_number)
+                    
                 
                 # Casos de falla
-                if pkg.seq_number == (self.ack_num - 1): # Paquete duplicado (caso que ack no llega)
+                elif pkg.seq_number == (self.ack_num - 1): # Paquete duplicado (caso que ack no llega)
                     self.send_acknowledge('DUPLICATE_ACK', pkg.seq_number)
                     continue
 
@@ -322,6 +338,7 @@ class StopAndWait():
             seq_number=seq_number,
             ack_number=ack_number
         ).encode_pkg()        
+        print(type, flag, seq_number, ack_number)
         self.socket.sendto(pkg, self.addr)
         
         self.seq_num += 1
