@@ -304,7 +304,10 @@ class SelectiveRepeat():
 
                 #El receiver recibe un paquete fuera de orden. Lo guardo en el buffer.
                 if self.ack_num > pkg.seq_number + 1: 
-                    self.arriving_pkt_buffer[pkg.seq_number] = pkg #Deberia usar el buffer para reordenar
+                    self.arriving_pkt_buffer[pkg.seq_number] = pkg
+                    #A diferenca de SW, mando ACK igual, aunque este en desorden
+                    #Que no me cambie el ack actual! Yo sigo esperando el paquete perdido.
+                    self.send_acknowledge('ACK', pkg.seq_number)
                     self.logger.info(f"Wrong self.ack_num = {self.ack_num} and  pkg.seq_number + 1 = {pkg.seq_number + 1}")
                     raise Exception
                 
