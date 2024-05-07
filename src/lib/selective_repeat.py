@@ -80,7 +80,7 @@ class SelectiveRepeat():
         startedTransfer = False
         file_name = args.name
         
-        while notDownloadingFile:
+        while not startedTransfer:
             datagram = self.datagram_queue.get(block=True, timeout=CONNECTION_TIMEOUT)
             pkg = Package.decode_pkg(datagram)
         
@@ -95,23 +95,22 @@ class SelectiveRepeat():
                 self.timer.cancel() # Sino sigue reenviando START_TRANSFER para siempre
 
                 if client_type == DOWNLOAD_TYPE:
-                    notDownloadingFile = True
                     startedTransfer = True
-                    # Ahora solo escucho paquetes en receive file
                     self.receive_file(args.dst, file_name)
                     
                 if client_type == UPLOAD_TYPE:
                     startedTransfer = True
-                    threading.Thread(target=self.send_file, args=(args.src,)).start()
+                    self.send_file(args.src)
             
-            elif pkg.flags == ACK: # muerte ACÁ SOLO ENTRA EL SENDER (ENVIANDO UN FILE)
-                print(f"[{self.addr}] Recibí un ACK para el paquete {pkg.ack_number}")
-                if pkg.ack_number in self.timers:
-                    self.timers[pkg.ack_number].cancel()
-                    self.paquetes_en_vuelo -= 1
-                else:
-                    print(f"[{self.addr}] Recibí un FINACK")
-                    self.timer.cancel()
+            # elif pkg.flags == ACK: # muerte ACÁ SOLO ENTRA EL SENDER (ENVIANDO UN FILE)
+            #     print(f"[{self.addr}] Recibí un ACK para el paquete {pkg.ack_number}")
+            #     if pkg.ack_number in self.timers:
+            #         self.timers[pkg.ack_number].cancel()
+            #         self.paquetes_en_vuelo -= 1
+            #     else:
+            #         print(f"[{self.addr}] Recibí un FINACK")
+            #         if self.timer is not None:
+            #             self.timer.cancel()
 
     def send_acknowledge(self, type, seq_number):
         if type == 'SYNACK':
@@ -134,17 +133,19 @@ class SelectiveRepeat():
     def get_acknowledge(self):
         datagram = self.datagram_queue.get(block=True, timeout=CONNECTION_TIMEOUT)
         pkg = Package.decode_pkg(datagram)
-        last_pkg = Package.decode_pkg(self.last_sent_pkg)
         
         if pkg.flags == ACK:
-            if pkg.ack_number == last_pkg.seq_number: #caso de ack no duplicado
+            print(f"[{self.addr}] Recibí un ACK para el paquete {pkg.ack_number}")
+            if pkg.ack_number in self.timers:
+                self.timers[pkg.ack_number].cancel()
+                self.paquetes_en_vuelo -= 1
+            else:
+                print(f"[{self.addr}] Recibí un FINACK")
                 if self.timer is not None:
                     self.timer.cancel()
-                    # print("apago timer")
-                #self.start_timer()  #Reinicia el timer porque recibio un ACK
-                self.ack_num+=1
-                self.paquetes_en_vuelo -= 1
             return pkg
+        
+        last_pkg = Package.decode_pkg(self.last_sent_pkg)
         
         if pkg.flags == SYN:
             if pkg.ack_number == last_pkg.seq_number: #caso de ack no duplicado
@@ -186,12 +187,11 @@ class SelectiveRepeat():
         file, file_size = prepare_file_for_transmission(file_path)
 
         while file_size > 0:
-            # El busy wait de tu vida es este. Si no podés mandar más paquetes no hagas nada
-            while (self.paquetes_en_vuelo < self.window_size and file_size > 0):
-                self.logger.info(f"\n[{self.addr}] File size remaining: {file_size}")
+            self.logger.info(f"\n[{self.addr}] File size remaining: {file_size}")
+            
+            while (self.paquetes_en_vuelo < self.window_size): 
                 data = file.read(DATA_SIZE)
-                data_length = len(data)
-                
+                data_length = len(data)               
                 # El orden de los prints altera el producto
                 self.logger.info(f"[{self.addr}] Sending {data_length} bytes in package {self.seq_num}")
                 self.send_package(2, NO_FLAG, data_length, data, self.seq_num, self.seq_num)      
@@ -205,16 +205,29 @@ class SelectiveRepeat():
                 #    raise Exception
                 
                 #self.seq_num+=1
+                
+            self.get_acknowledge()
         
         ##Si todavia no tengo lugar en paquetes_en_vuelo para el FIN, deberia esperar a un ACK...
-        if(self.paquetes_en_vuelo < self.window_size):
-            #self.seq_num += 1
-            self.send_package(2, FIN, 0, ''.encode(), self.seq_num, self.ack_num)      
-            self.paquetes_en_vuelo += 1
-            self.logger.info(f"[{self.addr}] File size remaining: {file_size}")
-            self.logger.info(f"[{self.addr}] Sending FIN")
-            if self.timer is not None:
-                self.timer.cancel() # Apago timer 
+        while(self.paquetes_en_vuelo > 0):
+            if self.paquetes_en_vuelo == self.window_size - 1:
+                self.send_package(2, FIN, 0, ''.encode(), self.seq_num, self.ack_num)      
+                self.paquetes_en_vuelo += 1
+                self.logger.info(f"[{self.addr}] File size remaining: {file_size}")
+                self.logger.info(f"[{self.addr}] Sending FIN")
+                if self.timer is not None:
+                    self.timer.cancel() # Apago timer
+        
+            self.get_acknowledge()
+    
+        # if(self.paquetes_en_vuelo < self.window_size):
+        #     #self.seq_num += 1
+        #     self.send_package(2, FIN, 0, ''.encode(), self.seq_num, self.ack_num)      
+        #     self.paquetes_en_vuelo += 1
+        #     self.logger.info(f"[{self.addr}] File size remaining: {file_size}")
+        #     self.logger.info(f"[{self.addr}] Sending FIN")
+        #     if self.timer is not None:
+        #         self.timer.cancel() # Apago timer 
             
             #self.seq_num+=1
         
