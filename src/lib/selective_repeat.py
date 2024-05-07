@@ -90,10 +90,12 @@ class SelectiveRepeat():
                 self.logger.info(f"[{self.addr}] Recibí SYNACK, envio START_TRANSFER")
                 self.send_package(client_type, START_TRANSFER, len(file_name), file_name.encode(), self.seq_num, self.ack_num)
                 self.ack_num+=1
+                self.awaited_ack += 1
 
             if pkg.flags == ACK and not startedTransfer:
                 self.logger.info(f"[{self.addr}] Recibí ACK del START_TRANSFER")
                 self.ack_num+=1
+                self.awaited_ack += 1
                 self.timer.cancel() # Sino sigue reenviando START_TRANSFER para siempre
 
                 if client_type == DOWNLOAD_TYPE:
@@ -140,6 +142,9 @@ class SelectiveRepeat():
             print(f"[{self.addr}] Recibí un ACK para el paquete {pkg.ack_number}")
             self.lastest_received_ack = pkg.ack_number
             self.already_acked_pkgs[self.lastest_received_ack] = pkg
+            
+            if pkg.ack_number == self.awaited_ack:
+                self.awaited_ack += 1
 
             if pkg.ack_number in self.timers:
                 self.timers[pkg.ack_number].cancel()
@@ -277,8 +282,8 @@ class SelectiveRepeat():
                 
             elif pkg.flags == NO_FLAG: # Recibí bytes del archivo
                 self.logger.info(f"[{self.addr}] Received package {pkg.seq_number}")
-                print(f"[{self.addr}] SEQ_NUMBER", pkg.seq_number)
-                print(f"[{self.addr}] ACK_NUMBER",self.ack_num)
+                # print(f"[{self.addr}] SEQ_NUMBER", pkg.seq_number)
+                # print(f"[{self.addr}] ACK_NUMBER",self.ack_num)
                 
                 # TODO: está recibiendo seq = 2 y tiene ack en 0
                 
