@@ -13,6 +13,7 @@ class StopAndWait():
         la comunicación, etc.
     """
     
+
     def __init__(self, addr, logger, storage):
         # TODO: no se si se puede usar un socket concurrentemente para enviar mensajes
         # => creo uno nuevo. Puede ser que se pueda usar el mismo para todas las conexiones
@@ -30,7 +31,7 @@ class StopAndWait():
         
         
         self.logger = logger
-
+        self.start_time = time.time()
         self.timer = None
         self.last_sent_pkg = None  # Almacena el último paquete enviado
         
@@ -273,6 +274,14 @@ class StopAndWait():
         self.send_package(2, FIN, 0, ''.encode(), self.seq_num, self.ack_num)      
         self.logger.info(f"[{self.addr}] File size remaining: {file_size}")
         self.logger.info(f"[{self.addr}] Sending FIN")
+            # Fin del contador de tiempo
+        end_time = time.time()
+
+        # Cálculo del tiempo transcurrido
+        elapsed_time = end_time - self.start_time
+
+        # Impresión del tiempo transcurrido
+        print(f"Tiempo transcurrido: {elapsed_time} segundos")
         _ = self.get_acknowledge()
         # if self.timer is not None:
         #     self.timer.cancel() # Apago timer 
