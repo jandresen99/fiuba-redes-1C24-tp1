@@ -64,43 +64,47 @@ class SelectiveRepeat():
                     notTransfering = False
                     
             if pkg.flags == ACK: # muerte
-                print("[{self.addr}] Recibí un ACK")
+                print(f"[{self.addr}] Recibí un ACK del paquete {pkg.ack_number}")
     
     def start_client(self, client_type, args):
         print("Selective Repeat")
         # Primer mensaje solo tiene el SYN en 1 y si es de tipo download o upload
         # El server contesta con un SYN 1 y el ACK
         # El cliente envía un ACK con SYN 0 y la conexión queda establecida
-        self.send_package(client_type, SYN, len(self.name.encode()), self.name.encode(), self.seq_num, self.ack_num)
         self.logger.info(f"[{self.addr}] Sending SYN")
+        self.send_package(client_type, SYN, len(self.name.encode()), self.name.encode(), self.seq_num, self.ack_num)
         
-        notTransfering = True
+        # Cuando hago un send_file, tengo que lanzar otro thread, con el recv_file no hace falta
+        notDownloadingFile = True
+        startedTransfer = False
         file_name = args.name
         
-        while notTransfering:
+        while notDownloadingFile:
             datagram = self.datagram_queue.get(block=True, timeout=CONNECTION_TIMEOUT)
             pkg = Package.decode_pkg(datagram)
-            
-            # Checkeo que recibí el paquete que esperaba (debug)
-            if self.ack_num != 0 and pkg.seq_number != self.ack_num:
-                self.handle_unordered_package(pkg.seq_number)
-                continue # Dropeo el paquete y vuelvo a esperar mensajes
         
             if pkg.flags == SYNACK:
+                self.logger.info(f"[{self.addr}] Recibí SYNACK, envio START_TRANSFER")
                 self.send_package(client_type, START_TRANSFER, len(file_name), file_name.encode(), self.seq_num, self.ack_num)
-                self.ack_num+=1       
+                self.ack_num+=1
 
-            if pkg.flags == ACK: # El server recibió el start transfer
+            if pkg.flags == ACK and not startedTransfer:
                 self.logger.info(f"[{self.addr}] Recibí ACK del START_TRANSFER")
-                self.ack_num+=1  
+                self.ack_num+=1
+                self.timer.cancel()
 
                 if client_type == DOWNLOAD_TYPE:
-                    notTransfering = False
+                    notDownloadingFile = True
+                    startedTransfer = True
+                    # Ahora solo escucho paquetes en receive file
                     self.receive_file(args.dst, file_name)
                     
                 if client_type == UPLOAD_TYPE:
-                    notTransfering = False
-                    self.send_file(args.src)
+                    startedTransfer = True
+                    threading.Thread(target=self.send_file, args=(args.src,)).start()
+        
+            if pkg.flags == ACK: # muerte
+                print("[{self.addr}] Recibí un ACK")
 
     def send_acknowledge(self, type, seq_number):
         if type == 'SYNACK':
@@ -177,18 +181,18 @@ class SelectiveRepeat():
         file, file_size = prepare_file_for_transmission(file_path)
 
         while file_size > 0:
-
-            self.logger.info(f"[{self.addr}] File size remaining: {file_size}")
-            data = file.read(DATA_SIZE)
-            data_length = len(data)
-
-
+            # El busy wait de tu vida es este. Si no podés mandar más paquetes no hagas nada
             while (self.paquetes_en_vuelo < self.window_size):
+                self.logger.info(f"\n[{self.addr}] File size remaining: {file_size}")
+                data = file.read(DATA_SIZE)
+                data_length = len(data)
+                
+                # El orden de los prints altera el producto
+                self.logger.info(f"[{self.addr}] Sending {data_length} bytes in package {self.seq_num}")
                 self.send_package(2, NO_FLAG, data_length, data, self.seq_num, self.seq_num)      
                 self.paquetes_en_vuelo += 1 # Agregar paquetes en vuelo es solo una vez que se es sender (NO agregar a send_package() )
-                self.logger.info(f"[{self.addr}] Sending {data_length} bytes in package {self.seq_num}")
-                self.logger.info(f"[{self.addr}] Paquetes en vuelo: {self.paquetes_en_vuelo}")
-
+                self.logger.info(f"[{self.addr}] Paquetes en vuelo: {self.paquetes_en_vuelo}\n")
+                
                 file_size -= data_length
 
                 # _ = self.get_acknowledge()
@@ -331,7 +335,8 @@ class SelectiveRepeat():
             seq_number=seq_number,
             ack_number=ack_number
         )     
-        print(type, flag, seq_number, ack_number)
+    
+        # print(type, flag, seq_number, ack_number)
         self.socket.sendto(pkg.encode_pkg(), self.addr)
         
         self.seq_num += 1
