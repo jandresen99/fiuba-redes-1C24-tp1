@@ -208,28 +208,21 @@ class SelectiveRepeat():
                 
             self.get_acknowledge()
         
+        print("La cantidad de paquetes en vuelo es: ", self.paquetes_en_vuelo)
         ##Si todavia no tengo lugar en paquetes_en_vuelo para el FIN, deberia esperar a un ACK...
+        enviado_fin = False
         while(self.paquetes_en_vuelo > 0):
-            if self.paquetes_en_vuelo == self.window_size - 1:
-                self.send_package(2, FIN, 0, ''.encode(), self.seq_num, self.ack_num)      
+            if (self.paquetes_en_vuelo == (self.window_size - 1) and not enviado_fin):
+                self.send_package(2, FIN, 0, ''.encode(), self.seq_num, self.ack_num)     
+                enviado_fin = True 
                 self.paquetes_en_vuelo += 1
                 self.logger.info(f"[{self.addr}] File size remaining: {file_size}")
-                self.logger.info(f"[{self.addr}] Sending FIN")
+                self.logger.info(f"[{self.addr}] Sending FIN")                
                 if self.timer is not None:
                     self.timer.cancel() # Apago timer
         
             self.get_acknowledge()
-    
-        # if(self.paquetes_en_vuelo < self.window_size):
-        #     #self.seq_num += 1
-        #     self.send_package(2, FIN, 0, ''.encode(), self.seq_num, self.ack_num)      
-        #     self.paquetes_en_vuelo += 1
-        #     self.logger.info(f"[{self.addr}] File size remaining: {file_size}")
-        #     self.logger.info(f"[{self.addr}] Sending FIN")
-        #     if self.timer is not None:
-        #         self.timer.cancel() # Apago timer 
-            
-            #self.seq_num+=1
+   
         
     def receive_file(self, destination_path, file_name):
         self.logger.info(f"[{self.addr}] Beginning to receive file")
