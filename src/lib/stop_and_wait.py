@@ -84,17 +84,27 @@ class StopAndWait():
                     # self.logger.info(f"[{self.addr}] Client is DOWNLOADING file")
                     # self.send_file(self.storage + "/" + pkg.data.decode())
                     while transfer_ack_not_received:
-                        if self.datagram_queue.empty():
-                            time.sleep(1)
-                        if self.datagram_queue.empty():
+                        #if self.datagram_queue.empty():
+                        #    time.sleep(1)
+                        #if self.datagram_queue.empty():
+                        #    transfer_ack_not_received=False
+                        #    self.logger.info(f"[{self.addr}] Client is DOWNLOADING file")
+                        #    self.send_file(self.storage + "/" + pkg.data.decode())
+                        #    print("Termino la comunicación")
+                        #    notTransfering = False
+                        #    break
+                        
+                        try:
+                            datagram = self.datagram_queue.get(block=True, timeout=1)  # Espera hasta 5 segundos por un elemento          
+                        except Empty:
                             transfer_ack_not_received=False
                             self.logger.info(f"[{self.addr}] Client is DOWNLOADING file")
                             self.send_file(self.storage + "/" + pkg.data.decode())
                             print("Termino la comunicación")
                             notTransfering = False
                             break
-                          
-                        datagram = self.datagram_queue.get(block=True, timeout=CONNECTION_TIMEOUT) #CHECK
+
+                        
                         pkg = Package.decode_pkg(datagram)
                         if(pkg.flags==START_TRANSFER):
                             print("start duplicado")
