@@ -26,7 +26,7 @@ class SelectiveRepeat():
         self.paquetes_en_vuelo = 0
         self.awaited_ack = 0
         self.lastest_received_ack = 0
-        self.already_acked_pkgs = {}
+        # self.already_acked_pkgs = {}
 
         self.arriving_pkt_buffer = {}
                          
@@ -37,7 +37,9 @@ class SelectiveRepeat():
         self.last_sent_pkg = None  # Almacena el último paquete enviado. TODO: debería ser un map esto también
         
     # TODO: hay cosas que siguen rompiendo en stop and wait. Traer los cambios acá cuando funcione    
-        
+########################################################################################################################################
+#########################--------HANDSHAKE--------##############################################################################################
+      
     def start_server(self):
         """ Empieza a consumir paquetes"""        
         notTransfering=True
@@ -117,24 +119,91 @@ class SelectiveRepeat():
             #         if self.timer is not None:
             #             self.timer.cancel()
 
-    def send_acknowledge(self, type, seq_number):
-        if type == 'SYNACK':
-            self.logger.info(f"[{self.addr}] Sending SYNACK")
-            self.send_package(1, SYNACK, 0, ''.encode(), 0, self.ack_num) 
-            #self.seq_num += 1
-       
-        if type == 'ACK':  
-            self.logger.info(f"[{self.addr}] Sending ACK {seq_number}")
-            self.send_package(1, ACK, 0, ''.encode(), seq_number, seq_number)       
-            #self.seq_num += 1
-
-        if type == 'DUPLICATE_ACK':
-            # No aumento contadores
-            self.logger.info(f"[{self.addr}] Sending ACK DUPLICATE {seq_number}")
-            self.send_package(1, ACK, 0, ''.encode(), seq_number, seq_number)
-            self.seq_num-=1 
-            self.ack_num-=1      
-
+    def push(self, datagram: bytes):    
+        self.datagram_queue.put(datagram)
+    
+########################################################################################################################################
+#########################--------SENDER--------##############################################################################################
+    def send_file(self, file_path):
+        file, file_size = prepare_file_for_transmission(file_path)
+        while file_size > 0:
+            self.logger.info(f"\n[{self.addr}] File size remaining: {file_size}")
+            
+            while ((self.paquetes_en_vuelo < self.window_size)):             
+                data = file.read(DATA_SIZE)
+                data_length = len(data)               
+                # El orden de los self.logger.debugs altera el producto
+                self.logger.info(f"[{self.addr}] Sending {data_length} bytes in package {self.seq_num}")
+                self.send_package(2, NO_FLAG, data_length, data, self.seq_num, self.seq_num)      
+              
+                self.paquetes_en_vuelo += 1 # Agregar paquetes en vuelo es solo una vez que se es sender (NO agregar a send_package() )
+                self.logger.info(f"[{self.addr}] Paquetes en vuelo: {self.paquetes_en_vuelo}\n")
+                
+                file_size -= data_length
+                
+                #if ack_pkg.ack_number == self.seq_num:
+                #    self.logger.info(f"Duplicated ACK {ack_pkg.ack_number} while self.seq_num {self.seq_num} from {self.addr}")
+                #    raise Exception
+                
+                #self.seq_num+=1
+            
+           
+            self.get_acknowledge()
+            
+            if (self.awaited_ack < self.lastest_received_ack):
+                self.handle_unordered_package_by_sender(self.lastest_received_ack)
+                
+                #Voy checkeando en orden que paqutes ya fueron ackeados
+                for seq_number in self.already_acked_pkgs:
+                    #Si cumplen con el orden sigo
+                    # while (pkg_in_buffer) in self.arriving_pkt_buffer:
+                    #         pkg = self.arriving_pkt_buffer.pop(pkg_in_buffer)
+                    #         file.write(pkg.data)
+                    #         pkg_in_buffer += 1
+                    pkg = self.already_acked_pkgs.pop(seq_number)
+                    
+                    if pkg.seq_number == self.awaited_ack:
+                        self.awaited_ack += 1
+                        self.lastest_received_ack = pkg.seq_number
+                        pkg += 1
+                    #Si no cumplen con el orden, significa que sigo teniendo algo perdido
+                    else:
+                        self.handle_unordered_package_by_sender(pkg)
+        
+        ##Si todavia no tengo lugar en paquetes_en_vuelo para el FIN, deberia esperar a un ACK...
+        self.logger.debug("Salgo del loop principal")
+        
+        enviado_fin = False
+        while(self.paquetes_en_vuelo > 0):
+            self.logger.debug("La cantidad de paquetes en vuelo es: ", self.paquetes_en_vuelo)
+            if (self.paquetes_en_vuelo == (self.window_size - 1) and not enviado_fin):
+                self.send_package(2, FIN, 0, ''.encode(), self.seq_num, self.ack_num)     
+                enviado_fin = True 
+                self.paquetes_en_vuelo += 1
+                self.logger.info(f"[{self.addr}] Sending FIN")                
+                if self.timer is not None:
+                    self.timer.cancel() # Apago timer
+        
+            self.get_acknowledge()
+            
+            if (self.awaited_ack < self.lastest_received_ack):
+                self.handle_unordered_package_by_sender(self.lastest_received_ack)
+                
+                #Voy checkeando en orden que paqutes ya fueron ackeados
+                for seq_number in self.already_acked_pkgs:
+    
+                    pkg = self.already_acked_pkgs.pop(seq_number)
+                    
+                    if pkg.seq_number == self.awaited_ack:
+                        self.awaited_ack += 1
+                        self.lastest_received_ack = pkg.seq_number
+                        pkg += 1
+                    #Si no cumplen con el orden, significa que sigo teniendo algo perdido
+                    else:
+                        self.handle_unordered_package_by_sender(pkg)
+   
+        self.logger.debug("Terminé send_file")
+      
     def get_acknowledge(self):
         datagram = self.datagram_queue.get(block=True, timeout=CONNECTION_TIMEOUT)
         pkg = Package.decode_pkg(datagram)
@@ -142,7 +211,7 @@ class SelectiveRepeat():
         if pkg.flags == ACK:
             self.logger.debug(f"[{self.addr}] Recibí un ACK para el paquete {pkg.seq_number}")
             self.lastest_received_ack = pkg.seq_number
-            self.already_acked_pkgs[pkg.seq_number] = pkg
+            # self.already_acked_pkgs[pkg.seq_number] = pkg
 
             if pkg.ack_number == self.awaited_ack: # Recibí en el orden correcto
                 self.awaited_ack += 1
@@ -182,9 +251,8 @@ class SelectiveRepeat():
         if pkg.flags == START_TRANSFER:
             self.send_acknowledge('DUPLICATE_ACK', pkg.seq_number)
             return pkg
-
-        
-    def handle_unordered_package(self, seq_number):
+   
+    def handle_unordered_package_by_sender(self, seq_number):
         """ Puramente para debugging """
         # TODO: en selective repeat devolver ACKs independientemente del desorden
         # y guardar data en buffer
@@ -194,99 +262,17 @@ class SelectiveRepeat():
 
         self.get_acknowledge()
         if (self.awaited_ack != self.lastest_received_ack):
-                self.handle_unordered_package(self.lastest_received_ack)
+                self.handle_unordered_package_by_sender(self.lastest_received_ack)
                 
         else:            
             self.logger.info(f"Got awaited ACK {self.awaited_ack}")
             self.awaited_ack += 1
             
         return
-           
-
-
-    def push(self, datagram: bytes):    
-        self.datagram_queue.put(datagram)
-    
-    def send_file(self, file_path):
-        file, file_size = prepare_file_for_transmission(file_path)
-        while file_size > 0:
-            self.logger.info(f"\n[{self.addr}] File size remaining: {file_size}")
-            
-            while ((self.paquetes_en_vuelo < self.window_size)):             
-                data = file.read(DATA_SIZE)
-                data_length = len(data)               
-                # El orden de los self.logger.debugs altera el producto
-                self.logger.info(f"[{self.addr}] Sending {data_length} bytes in package {self.seq_num}")
-                self.send_package(2, NO_FLAG, data_length, data, self.seq_num, self.seq_num)      
-              
-                self.paquetes_en_vuelo += 1 # Agregar paquetes en vuelo es solo una vez que se es sender (NO agregar a send_package() )
-                self.logger.info(f"[{self.addr}] Paquetes en vuelo: {self.paquetes_en_vuelo}\n")
-                
-                file_size -= data_length
-                
-                #if ack_pkg.ack_number == self.seq_num:
-                #    self.logger.info(f"Duplicated ACK {ack_pkg.ack_number} while self.seq_num {self.seq_num} from {self.addr}")
-                #    raise Exception
-                
-                #self.seq_num+=1
-            
-           
-            self.get_acknowledge()
-            
-            if (self.awaited_ack < self.lastest_received_ack):
-                self.handle_unordered_package(self.lastest_received_ack)
-                
-                #Voy checkeando en orden que paqutes ya fueron ackeados
-                for seq_number in self.already_acked_pkgs:
-                    #Si cumplen con el orden sigo
-                    # while (pkg_in_buffer) in self.arriving_pkt_buffer:
-                    #         pkg = self.arriving_pkt_buffer.pop(pkg_in_buffer)
-                    #         file.write(pkg.data)
-                    #         pkg_in_buffer += 1
-                    pkg = self.already_acked_pkgs.pop(seq_number)
-                    
-                    if pkg.seq_number == self.awaited_ack:
-                        self.awaited_ack += 1
-                        self.lastest_received_ack = pkg.seq_number
-                        pkg += 1
-                    #Si no cumplen con el orden, significa que sigo teniendo algo perdido
-                    else:
-                        self.handle_unordered_package(pkg)
-        
-        ##Si todavia no tengo lugar en paquetes_en_vuelo para el FIN, deberia esperar a un ACK...
-        self.logger.debug("Salgo del loop principal")
-        
-        enviado_fin = False
-        while(self.paquetes_en_vuelo > 0):
-            self.logger.debug("La cantidad de paquetes en vuelo es: ", self.paquetes_en_vuelo)
-            if (self.paquetes_en_vuelo == (self.window_size - 1) and not enviado_fin):
-                self.send_package(2, FIN, 0, ''.encode(), self.seq_num, self.ack_num)     
-                enviado_fin = True 
-                self.paquetes_en_vuelo += 1
-                self.logger.info(f"[{self.addr}] Sending FIN")                
-                if self.timer is not None:
-                    self.timer.cancel() # Apago timer
-        
-            self.get_acknowledge()
-            
-            if (self.awaited_ack < self.lastest_received_ack):
-                self.handle_unordered_package(self.lastest_received_ack)
-                
-                #Voy checkeando en orden que paqutes ya fueron ackeados
-                for seq_number in self.already_acked_pkgs:
-    
-                    pkg = self.already_acked_pkgs.pop(seq_number)
-                    
-                    if pkg.seq_number == self.awaited_ack:
-                        self.awaited_ack += 1
-                        self.lastest_received_ack = pkg.seq_number
-                        pkg += 1
-                    #Si no cumplen con el orden, significa que sigo teniendo algo perdido
-                    else:
-                        self.handle_unordered_package(pkg)
    
-        self.logger.debug("Terminé send_file")
-        
+########################################################################################################################################
+#########################--------RECEIVER--------##############################################################################################
+
     def receive_file(self, destination_path, file_name):
         self.logger.info(f"[{self.addr}] Beginning to receive file")
         # Estás recibiendo un archivo => solo mandas ACKs => ya no sos el sender
@@ -315,7 +301,7 @@ class SelectiveRepeat():
                 # Caso ideal: me llego el paquete en el orden correcto
                 if pkg.seq_number == self.ack_num:
                     file.write(pkg.data)
-                    #Si el paquete que me llegó era el perdido que esperaba, entonces mando el ACK
+                    #Si el paquete que me llegó era el perdido que esperaba
                     #me fijo lo que tenga en el buffer y lo escribo en el archivo
                     if(pkg.seq_number + 1) in self.arriving_pkt_buffer:
                         pkg_in_buffer = pkg.seq_number + 1
@@ -323,6 +309,7 @@ class SelectiveRepeat():
                             pkg = self.arriving_pkt_buffer.pop(pkg_in_buffer)
                             file.write(pkg.data)
                             pkg_in_buffer += 1
+                            ##ESTAMOS ACTUALIZANDSO EL SEQ_NUMBER (el expected packet?)
                     #Una vez escrito el archivo de forma ordenada, mando el ACK pendiente
                     self.send_acknowledge('ACK', pkg.seq_number)
                     
@@ -334,13 +321,8 @@ class SelectiveRepeat():
 
                 #El receiver recibe un paquete fuera de orden. Lo guardo en el buffer.
                 if self.ack_num > pkg.seq_number + 1: 
-                    self.arriving_pkt_buffer[pkg.seq_number] = pkg
-                    #A diferenca de SW, mando ACK igual, aunque este en desorden
-                    #Que no me cambie el ack actual! Yo sigo esperando el paquete perdido.
-                    self.send_acknowledge('ACK', pkg.seq_number)
-                    # TODO: que es esto???????
-                    # self.logger.info(f"Wrong self.ack_num = {self.ack_num} and  pkg.seq_number + 1 = {pkg.seq_number + 1}")
-                    # raise Exception
+                    handle_unordered_package_by_receiver(pkg)
+                   
                 
                 if pkg.seq_number == 0: #caso que recibe despues de una retransmicion
                     self.ack_num=0
@@ -357,7 +339,34 @@ class SelectiveRepeat():
             
                 
         self.logger.info(f"[{self.addr}] File {file_name} received")
-        
+    
+    def send_acknowledge(self, type, seq_number):
+        if type == 'SYNACK':
+            self.logger.info(f"[{self.addr}] Sending SYNACK")
+            self.send_package(1, SYNACK, 0, ''.encode(), 0, self.ack_num) 
+            #self.seq_num += 1
+       
+        if type == 'ACK':  
+            self.logger.info(f"[{self.addr}] Sending ACK {seq_number}")
+            self.send_package(1, ACK, 0, ''.encode(), seq_number, seq_number)       
+            #self.seq_num += 1
+
+        if type == 'DUPLICATE_ACK':
+            # No aumento contadores
+            self.logger.info(f"[{self.addr}] Sending ACK DUPLICATE {seq_number}")
+            self.send_package(1, ACK, 0, ''.encode(), seq_number, seq_number)
+            self.seq_num-=1 
+            self.ack_num-=1      
+      
+    def handle_unordered_package_by_receiver(self, pkg):
+        # self.logger.info(f"Wrong self.ack_num = {self.ack_num} and  pkg.seq_number + 1 = {pkg.seq_number + 1}")
+        self.arriving_pkt_buffer[pkg.seq_number] = pkg
+        #A diferenca de SW, mando ACK igual, aunque este en desorden
+        #Que no me cambie el ack actual! Yo sigo esperando el paquete perdido.
+        self.send_acknowledge('ACK', pkg.seq_number)   
+
+########################################################################################################################################
+
     def start_timer(self, pkg: Package):
         """ Esta función la usas en el handshake y el FIN"""
         if self.timer is not None:
