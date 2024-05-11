@@ -1,5 +1,5 @@
 from socket import socket, AF_INET, SOCK_DGRAM
-from queue  import Queue
+from queue import Queue, Empty
 from lib.package import Package
 from lib.values import *
 from lib.utils import *
@@ -7,6 +7,9 @@ import time # TODO: sacar esto
 import os
 import threading
 import time
+import sys
+
+
 
 class StopAndWait():
     """ Clase que encapsula toda la comunicación: recursos utilizados, estado de
@@ -81,16 +84,27 @@ class StopAndWait():
                     # self.logger.info(f"[{self.addr}] Client is DOWNLOADING file")
                     # self.send_file(self.storage + "/" + pkg.data.decode())
                     while transfer_ack_not_received:
-                        if self.datagram_queue.empty():
-                            time.sleep(1)
-                        if self.datagram_queue.empty():
+                        #if self.datagram_queue.empty():
+                        #    time.sleep(1)
+                        #if self.datagram_queue.empty():
+                        #    transfer_ack_not_received=False
+                        #    self.logger.info(f"[{self.addr}] Client is DOWNLOADING file")
+                        #    self.send_file(self.storage + "/" + pkg.data.decode())
+                        #    print("Termino la comunicación")
+                        #    notTransfering = False
+                        #    break
+                        
+                        try:
+                            datagram = self.datagram_queue.get(block=True, timeout=1)  # Espera hasta 5 segundos por un elemento          
+                        except Empty:
+                            transfer_ack_not_received=False
                             self.logger.info(f"[{self.addr}] Client is DOWNLOADING file")
                             self.send_file(self.storage + "/" + pkg.data.decode())
-                            print("Termino")
+                            print("Termino la comunicación")
                             notTransfering = False
                             break
-                          
-                        datagram = self.datagram_queue.get(block=True, timeout=CONNECTION_TIMEOUT) #CHECK
+
+                        
                         pkg = Package.decode_pkg(datagram)
                         if(pkg.flags==START_TRANSFER):
                             print("start duplicado")
@@ -138,6 +152,7 @@ class StopAndWait():
                 if client_type == UPLOAD_TYPE:
                     notTransfering = False
                     self.send_file(args.src)
+                    print("Terminó la comunicación!")
 
         # get_acknowledge espera a que entre un mensaje en la queue
         # self.get_acknowledge()
@@ -269,14 +284,17 @@ class StopAndWait():
             #    raise Exception
             
             #self.seq_num+=1
-        
+        finack_received = False
+        while finack_received == False:
         #self.seq_num += 1
-        self.send_package(2, FIN, 0, ''.encode(), self.seq_num, self.ack_num)      
-        self.logger.info(f"[{self.addr}] File size remaining: {file_size}")
-        self.logger.info(f"[{self.addr}] Sending FIN")
-        
-        if self.timer is not None:
-            self.timer.cancel() # Apago timer 
+            self.send_package(2, FIN, 0, ''.encode(), self.seq_num, self.ack_num)      
+            self.logger.info(f"[{self.addr}] File size remaining: {file_size}")
+            self.logger.info(f"[{self.addr}] Sending FIN")
+            pkg = self.get_acknowledge()
+            if pkg.flags == ACK:
+                if self.timer is not None:
+                    self.timer.cancel() # Apago timer
+                finack_received=True
             # self.logger.debug("apago timer")        
 
         
@@ -294,7 +312,25 @@ class StopAndWait():
         keep_receiving = True
         fin_received=False
         while keep_receiving:
-            datagram = self.datagram_queue.get(block=True, timeout=CONNECTION_TIMEOUT)
+
+            try:
+                datagram = self.datagram_queue.get(block=True, timeout=5)  # Espera hasta 5 segundos por un elemento
+                # Procesar el datagrama obtenido de la cola
+                #print("Datagrama obtenido:", datagram)
+            except Empty:
+                # Se produce un timeout, la cola está vacía
+                print("La cola está vacía o el timeout ha expirado. Finalizando Comunicacion.")
+                #keep_receiving = False
+
+                sys.exit()  # Sale del programa
+                
+
+
+    
+
+            #datagram = self.datagram_queue.get(block=True, timeout=CONNECTION_TIMEOUT)
+
+            
             pkg = Package.decode_pkg(datagram)
             
             if pkg.flags == START_TRANSFER: # TODO: checkear como manejarlo dentro de start_server
@@ -342,7 +378,7 @@ class StopAndWait():
                 if self.timer is not None:
                     self.timer.cancel()
 
-                keep_receiving = False #NO CONTEMPLA MAS DE UN FIN DUPLICATE
+                
             
                 
         self.logger.info(f"[{self.addr}] File {file_name} received")
