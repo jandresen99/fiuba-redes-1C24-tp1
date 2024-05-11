@@ -1,5 +1,5 @@
 from socket import socket, AF_INET, SOCK_DGRAM
-from queue  import Queue
+from queue  import Queue, Empty
 from lib.package import Package
 from lib.values import *
 from lib.utils import *
@@ -43,30 +43,54 @@ class SelectiveRepeat():
     def start_server(self):
         """ Empieza a consumir paquetes"""        
         notTransfering=True
+        syn_received=False
+        transfer_ack_not_received=True
         while notTransfering:
             datagram = self.datagram_queue.get(block=True, timeout=CONNECTION_TIMEOUT)
             pkg = Package.decode_pkg(datagram)
         
             if pkg.flags == SYN: 
-                self.logger.info(f"[{self.addr}] Received SYN")
-                #self.ack_num = pkg.seq_number + 1
-                self.send_acknowledge('SYNACK', None)
+                if syn_received==False:
+                    self.logger.info(f"[{self.addr}] Received SYN")
+                    #self.ack_num = pkg.seq_number + 1
+                    self.send_acknowledge('SYNACK', None)
+                    syn_received=True
+                else:
+                    self.logger.info(f"[{self.addr}] Received SYN Duplicated")
+                    #self.ack_num = pkg.seq_number + 1
+                    self.send_acknowledge('DUPLICATE_SYNACK', None)
+
             
             if pkg.flags == START_TRANSFER:
                 self.logger.info(f"[{self.addr}] Received START_TRANSFER")
                 self.send_acknowledge('ACK', pkg.seq_number)
 
                 # TODO: hay que lanzar un thread acá para seguir escuchando los paquetes que llegan
-                if pkg.type == UPLOAD_TYPE:
-                    self.logger.info(f"[{self.addr}] Client is UPLOADING file")
-                    self.receive_file(self.storage, pkg.data.decode())
-                    notTransfering = False
+                
+                while transfer_ack_not_received:
+                    try:
+                        datagram = self.datagram_queue.get(block=True, timeout=1)  # Espera hasta 5 segundos por un elemento          
+                    except Empty:
+                        transfer_ack_not_received=False
+                        if pkg.type == UPLOAD_TYPE:
+                            self.logger.info(f"[{self.addr}] Client is UPLOADING file")
+                            self.receive_file2(self.storage, pkg.data.decode())
+                        if pkg.type == DOWNLOAD_TYPE:
+                            self.logger.info(f"[{self.addr}] Client is DOWNLOADING file")
+                            self.send_file2(self.storage + "/" + pkg.data.decode())
+
+                        print("Termino la comunicación")
+                        notTransfering = False
+                        break
+
+                    pkg = Package.decode_pkg(datagram)
+                    if(pkg.flags==START_TRANSFER):
+                        self.logger.info(f"[{self.addr}] Received START_TRANSFER Duplicated")
+                        self.send_acknowledge('DUPLICATE_ACK', pkg.seq_number)
+
                     
-                if pkg.type == DOWNLOAD_TYPE:
-                    self.logger.info(f"[{self.addr}] Client is DOWNLOADING file")
-                    self.send_file(self.storage + "/" + pkg.data.decode())
-                    notTransfering = False
-                    
+
+
             if pkg.flags == ACK: # muerte ACÁ SOLO ENTRA EL SENDER (ENVIANDO UN FILE)
                 self.logger.debug(f"[{self.addr}] Recibí un ACK del paquete {pkg.ack_number}")
                 self.timers[pkg.seq_number].cancel()
@@ -103,12 +127,12 @@ class SelectiveRepeat():
 
                 if client_type == DOWNLOAD_TYPE:
                     startedTransfer = True
-                    self.receive_file(args.dst, file_name)
+                    self.receive_file2(args.dst, file_name)
                     
                 if client_type == UPLOAD_TYPE:
                     startedTransfer = True
-                    self.send_file(args.src)
-            
+                    self.send_file2(args.src)
+                    print("Termino la comunicacion!")
             # elif pkg.flags == ACK: # muerte ACÁ SOLO ENTRA EL SENDER (ENVIANDO UN FILE)
             #     self.logger.debug(f"[{self.addr}] Recibí un ACK para el paquete {pkg.ack_number}")
             #     if pkg.ack_number in self.timers:
@@ -203,7 +227,10 @@ class SelectiveRepeat():
                         self.handle_unordered_package_by_sender(pkg)
    
         self.logger.debug("Terminé send_file")
-      
+
+    def send_file2(self, file_path):
+        print("envio archivo")
+
     def get_acknowledge(self):
         datagram = self.datagram_queue.get(block=True, timeout=CONNECTION_TIMEOUT)
         pkg = Package.decode_pkg(datagram)
@@ -287,11 +314,11 @@ class SelectiveRepeat():
             datagram = self.datagram_queue.get(block=True, timeout=CONNECTION_TIMEOUT)
             pkg = Package.decode_pkg(datagram)
             
-            if pkg.flags == START_TRANSFER: # TODO: checkear como manejarlo dentro de start_server
-                self.logger.debug("START TRANSFER DUPLICATED")
-                self.send_acknowledge('DUPLICATE_ACK', pkg.seq_number)
+            #if pkg.flags == START_TRANSFER: # LO HACE START_SERVER
+            #    self.logger.debug("START TRANSFER DUPLICATED")
+            #    self.send_acknowledge('DUPLICATE_ACK', pkg.seq_number)
                 
-            elif pkg.flags == NO_FLAG: # Recibí bytes del archivo
+            if pkg.flags == NO_FLAG: # Recibí bytes del archivo
                 self.logger.info(f"[{self.addr}] Received package {pkg.seq_number}")
                 # self.logger.debug(f"[{self.addr}] SEQ_NUMBER", pkg.seq_number)
                 # self.logger.debug(f"[{self.addr}] ACK_NUMBER",self.ack_num)
@@ -339,7 +366,10 @@ class SelectiveRepeat():
             
                 
         self.logger.info(f"[{self.addr}] File {file_name} received")
-    
+
+    def receive_file2(self, destination_path, file_name):
+        print("recibo archivo")
+
     def send_acknowledge(self, type, seq_number):
         if type == 'SYNACK':
             self.logger.info(f"[{self.addr}] Sending SYNACK")
@@ -357,7 +387,14 @@ class SelectiveRepeat():
             self.send_package(1, ACK, 0, ''.encode(), seq_number, seq_number)
             self.seq_num-=1 
             self.ack_num-=1      
-      
+
+        if type == 'DUPLICATE_SYNACK':
+            # No aumento contadores
+            self.logger.info(f"[{self.addr}] Sending SYNACK DUPLICATE {seq_number}")
+            self.send_package(1, SYNACK, 0, ''.encode(), 0, self.ack_num)
+            self.seq_num-=1 
+            self.ack_num-=1 
+
     def handle_unordered_package_by_receiver(self, pkg):
         # self.logger.info(f"Wrong self.ack_num = {self.ack_num} and  pkg.seq_number + 1 = {pkg.seq_number + 1}")
         self.arriving_pkt_buffer[pkg.seq_number] = pkg
@@ -372,7 +409,7 @@ class SelectiveRepeat():
         if self.timer is not None:
             self.timer.cancel()  # Cancela el timer anterior si existe
 
-        self.timer = threading.Timer(PKG_TIMEOUT, self.handle_timeout, args=(pkg,))
+        self.timer = threading.Timer(PKG_TIMEOUT, self.handle_timeout2, args=(pkg,))
         self.timer.start()
     
     def start_concurrent_timer(self, pkg: Package):
@@ -407,7 +444,21 @@ class SelectiveRepeat():
             #         pkg = self.get_acknowledge() ##Era get_ack_receiver()
             #     else:
             #         pkg= self.get_ack()
-  
+    
+
+    def handle_timeout2(self, pkg: Package):
+        """ Se llama cuando se agota el temporizador (timeout) """
+        if self.last_sent_pkg is not None:
+            
+            self.logger.info(
+                f"[{self.addr}] RETRANSMITO " +
+                f"paquete: {pkg.seq_number} | flag: {pkg.flags}"
+            )
+            
+            self.socket.sendto(pkg.encode_pkg(), self.addr)
+
+            self.start_timer(pkg) # Reinicia el temporizador 
+
     def send_package(self, type, flag, data_length, data, seq_number, ack_number):
         pkg = Package(
             type=type,   
@@ -426,8 +477,10 @@ class SelectiveRepeat():
         # Guarda el último paquete enviado para retransmitirlo en caso de timeout
         self.last_sent_pkg = pkg
         if flag == NO_FLAG: # Paquetes con data
+            print("EMPIEXA TIMER CONCURRENTE")
             self.start_concurrent_timer(pkg)
         elif flag == SYN or flag == START_TRANSFER or flag == FIN: # Paquetes del sender en el handshake
             self.start_timer(pkg)
+            print("EMPIEZA TIMER")
         else:
             self.ack_num += 1
