@@ -170,12 +170,12 @@ class SelectiveRepeat():
         self.send_package(2, FIN, 0, ''.encode(), self.seq_num, self.ack_num)     
         self.paquetes_en_vuelo += 1
         self.logger.info(f"[{self.addr}] Sending FIN")  
+        
 
         
         while(self.paquetes_en_vuelo > 0):
             self.logger.debug("La cantidad de paquetes en vuelo es: ", self.paquetes_en_vuelo)               
-                #if self.timer is not None:
-                #    self.timer.cancel() # Apago timer
+                
         
             self.get_acknowledge()
             
@@ -212,7 +212,9 @@ class SelectiveRepeat():
             
                
             else: #Recibi en desorden
+                
                 self.handle_unordered_package_by_sender(pkg.seq_number) 
+                
 
                 self.already_acked_pkgs.sort()
                 
@@ -258,6 +260,10 @@ class SelectiveRepeat():
         self.logger.info(f"    Expected seq_number {self.ack_num}")
         self.logger.info(f"    Got seq_number {seq_number}")     
 
+        if seq_number in self.timers:
+            self.timers[seq_number].cancel()
+            self.paquetes_en_vuelo -= 1
+                    
         self.already_acked_pkgs.append(seq_number)
         print ("QUE ONDA", self.already_acked_pkgs)
 
@@ -278,13 +284,24 @@ class SelectiveRepeat():
         # => no te encargas del timeout
         if self.timer is not None:
             self.timer.cancel()
-    
+        fin_received=False
         file = open(destination_path + "/" + file_name, "wb+")
         print ("ESTOYRECIBIENDO")
         keep_receiving = True
         while keep_receiving:
             
-            datagram = self.datagram_queue.get(block=True, timeout=CONNECTION_TIMEOUT)
+            try:
+                datagram = self.datagram_queue.get(block=True, timeout=5)  # Espera hasta 5 segundos por un elemento
+                # Procesar el datagrama obtenido de la cola
+                #print("Datagrama obtenido:", datagram)
+            except Empty:
+                # Se produce un timeout, la cola está vacía
+                print("La cola está vacía o el timeout ha expirado. Finalizando Comunicacion.")
+                #keep_receiving = False
+
+                exit()  # Sale del programa
+            #datagram = self.datagram_queue.get(block=True, timeout=CONNECTION_TIMEOUT)
+
             pkg = Package.decode_pkg(datagram)
             
 
@@ -327,16 +344,29 @@ class SelectiveRepeat():
                    
                 
             
-            elif pkg.flags == FIN:
+            #elif pkg.flags == FIN:
                 
+                #self.logger.debug("recibo FIN y mando ACK", pkg.seq_number)
+                #self.send_acknowledge('ACK', pkg.seq_number)
+                #if self.timer is not None:
+                    #self.timer.cancel()
+                    
+                
+                #keep_receiving = False
+                
+
+            elif pkg.flags == FIN and fin_received==False:
+                # TODO: meter un handle_fin o end o algo
                 self.logger.debug("recibo FIN y mando ACK", pkg.seq_number)
                 self.send_acknowledge('ACK', pkg.seq_number)
-                if self.timer is not None:
-                    self.timer.cancel()
-                    # self.logger.debug("apago timer")
+                fin_received = True
                 
-                keep_receiving = False
-            
+                
+            elif pkg.flags == FIN and fin_received==True: 
+                print("FIN DUPLICATED")
+                self.send_acknowledge('DUPLICATE_ACK', pkg.seq_number)
+                fin_received = True
+                
                 
         self.logger.info(f"[{self.addr}] File {file_name} received")
 
@@ -383,7 +413,7 @@ class SelectiveRepeat():
         if self.timer is not None:
             self.timer.cancel()  # Cancela el timer anterior si existe
 
-        self.timer = threading.Timer(PKG_TIMEOUT, self.handle_timeout2, args=(pkg,))
+        self.timer = threading.Timer(PKG_TIMEOUT, self.handle_timeout, args=(pkg,))
         self.timer.start()
     
     def start_concurrent_timer(self, pkg: Package):
@@ -392,11 +422,11 @@ class SelectiveRepeat():
         if pkg.seq_number in self.timers and self.timers[pkg.seq_number] is not None:
             self.timers[pkg.seq_number].cancel()  # Cancela el timer anterior si existe
 
-        self.timers[pkg.seq_number] = threading.Timer(PKG_TIMEOUT, self.handle_timeout, args=(pkg,))
+        self.timers[pkg.seq_number] = threading.Timer(PKG_TIMEOUT, self.handle_timeout_concurrente, args=(pkg,))
         self.logger.debug(f"Arranco un timer para el paquete {pkg.seq_number}")
         self.timers[pkg.seq_number].start()
 
-    def handle_timeout(self, pkg: Package):
+    def handle_timeout_concurrente(self, pkg: Package):
         """ Se llama cuando se agota el temporizador (timeout) """
         if self.last_sent_pkg is not None:
             
@@ -420,7 +450,7 @@ class SelectiveRepeat():
             #         pkg= self.get_ack()
     
 
-    def handle_timeout2(self, pkg: Package):
+    def handle_timeout(self, pkg: Package):
         """ Se llama cuando se agota el temporizador (timeout) """
         if self.last_sent_pkg is not None:
             
