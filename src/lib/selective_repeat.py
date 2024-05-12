@@ -182,6 +182,23 @@ class SelectiveRepeat():
         print("envio archivo")
 
     def get_acknowledge(self):
+        print("\033[91m {}\033[00m" .format("EMPIEZO UN GETACK"))
+
+        print("ORDENO ALREADY_ACKA afuera")
+        pkg_to_remove = []
+        for seq_num in self.already_acked_pkgs:
+            if seq_num == self.ack_num:
+                print("\033[91m {}\033[00m" .format("received awaited!!!", seq_num))
+                self.paquetes_en_vuelo -= 1
+                pkg_to_remove.append(seq_num)
+                self.ack_num += 1
+            
+        
+
+        for seq_num in pkg_to_remove:
+            self.already_acked_pkgs.remove(seq_num)   
+
+            
         datagram = self.datagram_queue.get(block=True, timeout=CONNECTION_TIMEOUT)
         pkg = Package.decode_pkg(datagram)
         
@@ -212,22 +229,28 @@ class SelectiveRepeat():
                 
                 self.handle_unordered_package_by_sender(pkg.seq_number) 
                 
-
+                print("\033[91m {}\033[00m" .format("SIGO DESPUES DE GETACK"))
                 self.already_acked_pkgs.sort()
                 
                 #Voy checkeando en orden que paqutes ya fueron ackeados
                 #revisar!!
+                print("ORDENO ALREADY_ACK")
                 pkg_to_remove = []
                 for seq_num in self.already_acked_pkgs:
                     if seq_num == self.ack_num:
+                        print("\033[91m {}\033[00m" .format("received awaited!!!", seq_num))
+                        self.paquetes_en_vuelo -= 1
                         pkg_to_remove.append(seq_num)
                         self.ack_num += 1
                     
                     else:
-                        self.handle_unordered_package_by_sender(seq_num)
+                        self.handle_unordered_package_by_sender(seq_num)#llamar a getack directo)?
+                        #self.get_acknowledge()     
 
                 for seq_num in pkg_to_remove:
-                    self.already_acked_pkgs.remove(seq_num)        
+                    self.already_acked_pkgs.remove(seq_num)   
+
+                
 
 
         # last_pkg = Package.decode_pkg(self.last_sent_pkg)
@@ -264,7 +287,9 @@ class SelectiveRepeat():
 
         if seq_number in self.timers:
             self.timers[seq_number].cancel()
-            self.paquetes_en_vuelo -= 1
+            
+
+
         
         #PORQUE ME LLEGAN 2 ACKS DEL MISMO PAQUETE?? EN QUE ESCENARIO?
         if seq_number not in self.already_acked_pkgs:
