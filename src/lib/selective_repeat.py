@@ -82,11 +82,7 @@ class SelectiveRepeat():
 
                     print("Termino la comunicación")
                     notTransfering = False
-                    
-
-                    
-                    
-    
+                                
     def start_client(self, client_type, args):
         self.logger.debug("Selective Repeat")
         # Primer mensaje solo tiene el SYN en 1 y si es de tipo download o upload
@@ -198,6 +194,7 @@ class SelectiveRepeat():
             #    self.awaited_ack += 1
 
             if pkg.seq_number == self.ack_num: # Recibí en el orden correcto
+                self.logger.info(f"Got awaited ACK {self.ack_num}")
                 self.ack_num += 1
 
                 if pkg.seq_number in self.timers:
@@ -220,35 +217,43 @@ class SelectiveRepeat():
                 
                 #Voy checkeando en orden que paqutes ya fueron ackeados
                 #revisar!!
-                for i in range(len(self.already_acked_pkgs)):
-                    if self.already_acked_pkgs[i]==self.ack_num:
-                            self.already_acked_pkgs.pop(i)
-                            self.ack_num+=1
+                pkg_to_remove = []
+                print("ESTO ES UNA COÑOOOOOOOOOOOOO")
+                print(self.already_acked_pkgs)
+                for seq_num in self.already_acked_pkgs:
+                    print("ESTO ES UNA VERGAAAAAAA", seq_num)
+                    if seq_num == self.ack_num:
+                        pkg_to_remove.append(seq_num)
+                        self.ack_num += 1
                     
                     else:
-                        self.handle_unordered_package_by_sender(pkg)
+                        self.handle_unordered_package_by_sender(seq_num)
+
+                for seq_num in pkg_to_remove:
+                    self.already_acked_pkgs.remove(seq_num)        
+
+
+        # last_pkg = Package.decode_pkg(self.last_sent_pkg)
         
-        last_pkg = Package.decode_pkg(self.last_sent_pkg)
-        
-        if pkg.flags == SYN:
-            if pkg.ack_number == last_pkg.seq_number: #caso de ack no duplicado
-                #("reinicio timer")
-                if self.timer is not None:
-                    self.timer.cancel()
-                    # self.logger.debug("apago timer")
-                #self.start_timer()  #Reinicio el timer porque recibio un ACK
-                self.ack_num+=1 #PORQUE????
-            return pkg
+        # if pkg.flags == SYN:
+        #     if pkg.ack_number == last_pkg.seq_number: #caso de ack no duplicado
+        #         #("reinicio timer")
+        #         if self.timer is not None:
+        #             self.timer.cancel()
+        #             # self.logger.debug("apago timer")
+        #         #self.start_timer()  #Reinicio el timer porque recibio un ACK
+        #         self.ack_num+=1 #PORQUE????
+        #     return pkg
     
-        if pkg.flags == SYNACK:
-            if pkg.ack_number == last_pkg.seq_number: #caso de ack no duplicado
-                #("reinicio timer")
-                if self.timer is not None:
-                    self.timer.cancel()
-                    # self.logger.debug("apago timer")
-                #self.start_timer()  #Reinicio el timer porque recibio un ACK
-                self.ack_num+=1
-            return pkg
+        # if pkg.flags == SYNACK:
+        #     if pkg.ack_number == last_pkg.seq_number: #caso de ack no duplicado
+        #         #("reinicio timer")
+        #         if self.timer is not None:
+        #             self.timer.cancel()
+        #             # self.logger.debug("apago timer")
+        #         #self.start_timer()  #Reinicio el timer porque recibio un ACK
+        #         self.ack_num+=1
+        #     return pkg
         
         if pkg.flags == START_TRANSFER:
             self.send_acknowledge('DUPLICATE_ACK', pkg.seq_number)
@@ -267,12 +272,7 @@ class SelectiveRepeat():
         self.already_acked_pkgs.append(seq_number)
         print ("QUE ONDA", self.already_acked_pkgs)
 
-        self.get_acknowledge()
-                
-             
-        self.logger.info(f"Got awaited ACK {self.ack_num}")
-        self.ack_num += 1
-            
+        self.get_acknowledge()           
         return
    
 ########################################################################################################################################
@@ -326,7 +326,7 @@ class SelectiveRepeat():
                     for pkg_saved in range (len(self.arriving_pkt_buffer)):
                         if(pkg_saved.seq_number) == self.ack_num +1:
                             file.write(pkg_saved.data)
-                            self.arriving_pkt_buffer.pop(i)
+                            self.arriving_pkt_buffer.pop(pkg_saved)
                             self.ack_num +=1
                             
                     #Una vez escrito el archivo de forma ordenada, mando el ACK pendiente
@@ -334,7 +334,8 @@ class SelectiveRepeat():
                     
                 
                 # Casos de falla
-                elif pkg.seq_number == (self.ack_num - 1): # Paquete duplicado (caso que ack no llega)
+                elif pkg.seq_number < self.ack_num: # Paquete duplicado (caso que ack no llega) - 1)
+                    print("MANDO UN DUPLICATED_ACK")
                     self.send_acknowledge('DUPLICATE_ACK', pkg.seq_number)
                     continue
 
@@ -399,12 +400,18 @@ class SelectiveRepeat():
             self.ack_num-=1 
 
     def handle_unordered_package_by_receiver(self, pkg):
-        # self.logger.info(f"Wrong self.ack_num = {self.ack_num} and  pkg.seq_number + 1 = {pkg.seq_number + 1}")
-        self.arriving_pkt_buffer.append(pkg)
-        #A diferenca de SW, mando ACK igual, aunque este en desorden
-        #Que no me cambie el ack actual! Yo sigo esperando el paquete perdido.
-        self.send_acknowledge('ACK', pkg.seq_number)  
-        self.ack_num-=1 
+
+        if pkg.seq_number in self.arriving_pkt_buffer:
+            print("MANDO UN DUPLICATED_ACK")
+            self.send_acknowledge('DUPLICATE_ACK', pkg.seq_number)
+
+        else:
+            # self.logger.info(f"Wrong self.ack_num = {self.ack_num} and  pkg.seq_number + 1 = {pkg.seq_number + 1}")
+            self.arriving_pkt_buffer.append(pkg)
+            #A diferenca de SW, mando ACK igual, aunque este en desorden
+            #Que no me cambie el ack actual! Yo sigo esperando el paquete perdido.
+            self.send_acknowledge('ACK', pkg.seq_number)  
+            self.ack_num-=1 
 
 ########################################################################################################################################
 
