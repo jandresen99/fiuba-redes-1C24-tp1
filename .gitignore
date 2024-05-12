@@ -2,6 +2,7 @@ src/server.log
 server.log
 test.txt
 .DS_Store
+.idea/
 src/stored_files
 src/stored_files/
 src/downloaded_files
