@@ -341,8 +341,8 @@ class StopAndWait():
 
             elif pkg.flags == NO_FLAG: # Recibí bytes del archivo
                 self.logger.info(f"[{self.addr}] Received package {pkg.seq_number}")
-                self.logger.debug(f"[{self.addr}] SEQ_NUMBER", pkg.seq_number)
-                self.logger.debug(f"[{self.addr}] ACK_NUMBER",self.ack_num)
+                self.logger.debug(f"[{self.addr}] SEQ_NUMBER {pkg.seq_number}")
+                self.logger.debug(f"[{self.addr}] ACK_NUMBER {self.ack_num}")
                 
                 # TODO: está recibiendo seq = 2 y tiene ack en 0
                 
@@ -366,7 +366,7 @@ class StopAndWait():
             
             elif pkg.flags == FIN and fin_received==False:
                 # TODO: meter un handle_fin o end o algo
-                self.logger.debug("recibo FIN y mando ACK", pkg.seq_number)
+                self.logger.debug(f"recibo FIN y mando ACK {pkg.seq_number}")
                 self.send_acknowledge('ACK', pkg.seq_number)
                 fin_received = True
                 
@@ -397,7 +397,7 @@ class StopAndWait():
             
             self.logger.debug("Timeout: retransmitiendo último paquete")
             self.socket.sendto(self.last_sent_pkg, self.addr)
-            self.logger.debug("RETRANSMITO", Package.decode_pkg(self.last_sent_pkg).flags)
+            self.logger.debug(f"RETRANSMITO {Package.decode_pkg(self.last_sent_pkg).flags}")
             #self.seq_num=0 
             #self.ack_num=0
 
@@ -422,7 +422,7 @@ class StopAndWait():
             seq_number=seq_number,
             ack_number=ack_number
         ).encode_pkg()        
-        self.logger.debug(type, flag, seq_number, ack_number)
+        self.logger.debug(f"{type} {flag} {seq_number} {ack_number}")
         self.socket.sendto(pkg, self.addr)
         
         self.seq_num += 1

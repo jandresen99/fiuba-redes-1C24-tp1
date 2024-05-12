@@ -170,7 +170,7 @@ class SelectiveRepeat():
 
         
         while(self.paquetes_en_vuelo > 0):
-            self.logger.debug("La cantidad de paquetes en vuelo es: ", self.paquetes_en_vuelo)               
+            self.logger.debug(f"La cantidad de paquetes en vuelo es: {self.paquetes_en_vuelo}")               
                 
         
             self.get_acknowledge()
@@ -362,7 +362,7 @@ class SelectiveRepeat():
 
             elif pkg.flags == FIN and fin_received==False:
                 # TODO: meter un handle_fin o end o algo
-                self.logger.debug("recibo FIN y mando ACK", pkg.seq_number)
+                self.logger.debug(f"recibo FIN y mando ACK {pkg.seq_number}")
                 self.send_acknowledge('ACK', pkg.seq_number)
                 fin_received = True
                 
