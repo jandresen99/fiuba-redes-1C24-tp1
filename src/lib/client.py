@@ -35,7 +35,7 @@ class Client:
             datagram, addr = self.protocol.socket.recvfrom(BUFFER_SIZE)
 
             rand_num = random.random() # Entre 0 y 1
-            if rand_num < 0:
+            if rand_num < 0.6:
                 num_package = Package.decode_pkg(datagram).seq_number
                 self.logger.info(f"\n[DROP] Se perdió el package {num_package} proveniente de {addr}")
                 self.logger.info(f"Flags: {Package.decode_pkg(datagram).flags}\n")

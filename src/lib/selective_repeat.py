@@ -162,11 +162,9 @@ class SelectiveRepeat():
         self.logger.debug("Salgo del loop principal")
         
         
-        
-        self.send_package(2, FIN, 0, ''.encode(), self.seq_num, self.ack_num)     
-        self.paquetes_en_vuelo += 1
-        self.logger.info(f"[{self.addr}] Sending FIN")  
-        
+        #self.send_package(2, FIN, 0, ''.encode(), self.seq_num, self.ack_num)     
+        #self.paquetes_en_vuelo += 1
+        #self.logger.info(f"[{self.addr}] Sending FIN")  
 
         
         while(self.paquetes_en_vuelo > 0):
@@ -174,6 +172,20 @@ class SelectiveRepeat():
                 
         
             self.get_acknowledge()
+
+        
+        finack_received = False
+        while finack_received == False:
+        #self.seq_num += 1
+            self.send_package(2, FIN, 0, ''.encode(), self.seq_num, self.ack_num)      
+            self.logger.info(f"[{self.addr}] Sending FIN")
+            datagram = self.datagram_queue.get(block=True, timeout=CONNECTION_TIMEOUT)
+            pkg = Package.decode_pkg(datagram)
+            if pkg.flags == ACK:
+                if self.timer is not None:
+                    self.timer.cancel() # Apago timer
+                finack_received=True
+        
             
             
         self.logger.debug("Terminé send_file")
@@ -198,7 +210,7 @@ class SelectiveRepeat():
         for seq_num in pkg_to_remove:
             self.already_acked_pkgs.remove(seq_num)   
 
-            
+
         datagram = self.datagram_queue.get(block=True, timeout=CONNECTION_TIMEOUT)
         pkg = Package.decode_pkg(datagram)
         
