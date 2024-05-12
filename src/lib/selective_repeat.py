@@ -218,10 +218,7 @@ class SelectiveRepeat():
                 #Voy checkeando en orden que paqutes ya fueron ackeados
                 #revisar!!
                 pkg_to_remove = []
-                print("ESTO ES UNA COÑOOOOOOOOOOOOO")
-                print(self.already_acked_pkgs)
                 for seq_num in self.already_acked_pkgs:
-                    print("ESTO ES UNA VERGAAAAAAA", seq_num)
                     if seq_num == self.ack_num:
                         pkg_to_remove.append(seq_num)
                         self.ack_num += 1
@@ -268,11 +265,13 @@ class SelectiveRepeat():
         if seq_number in self.timers:
             self.timers[seq_number].cancel()
             self.paquetes_en_vuelo -= 1
-                    
-        self.already_acked_pkgs.append(seq_number)
-        print ("QUE ONDA", self.already_acked_pkgs)
+        
+        #PORQUE ME LLEGAN 2 ACKS DEL MISMO PAQUETE?? EN QUE ESCENARIO?
+        if seq_number not in self.already_acked_pkgs:
+            self.already_acked_pkgs.append(seq_number)
+            print ("ALREADY ACKED PKGS", self.already_acked_pkgs)
+            self.get_acknowledge()           
 
-        self.get_acknowledge()           
         return
    
 ########################################################################################################################################
@@ -317,18 +316,23 @@ class SelectiveRepeat():
                 # self.logger.debug(f"[{self.addr}] ACK_NUMBER",self.ack_num)
                 
             
-                self.arriving_pkt_buffer.sort()
+                
+                # Ordena el buffer utilizando la función de comparación personalizada (son pkgs)
+                self.arriving_pkt_buffer.sort(key=lambda x: x.seq_number)
                 # Caso ideal: me llego el paquete en el orden correcto
                 if pkg.seq_number == self.ack_num:
                     file.write(pkg.data)
                     #Si el paquete que me llegó era el perdido que esperaba
                     #me fijo lo que tenga en el buffer y lo escribo en el archivo
-                    for pkg_saved in range (len(self.arriving_pkt_buffer)):
+                    pkg_to_remove = []
+                    for pkg_saved in self.arriving_pkt_buffer:
                         if(pkg_saved.seq_number) == self.ack_num +1:
                             file.write(pkg_saved.data)
-                            self.arriving_pkt_buffer.pop(pkg_saved)
+                            pkg_to_remove.append(pkg_saved)
                             self.ack_num +=1
-                            
+
+                    for seq_num in pkg_to_remove:
+                        self.arriving_pkt_buffer.remove(seq_num)         
                     #Una vez escrito el archivo de forma ordenada, mando el ACK pendiente
                     self.send_acknowledge('ACK', pkg.seq_number)
                     
