@@ -1,5 +1,5 @@
 
-local proto_rdt = Proto("redestp1", "RDT GA6")
+local proto_rdt = Proto("redestp1", "Custom")
 
 
 local command = ProtoField.uint8("redestp1.command", "Type")
@@ -22,13 +22,12 @@ function proto_rdt.dissector(buf, pinfo, tree)
     subtree:add(data_length, buf(2, 4))
     subtree:add(seq_number, buf(6, 4))
     subtree:add(ack_number, buf(10, 4))
-    subtree:add(data, buf(414))
+    subtree:add(data, buf(14))
 
 
-    pinfo.cols.protocol:set("RDT GA6")
+    pinfo.cols.protocol:set("Custom")
 end
 
 
 local udp_port = DissectorTable.get("udp.port")
-udp_port:add(8080, proto_rdt)
-
+udp_port:add("0-65535", proto_rdt)
