@@ -61,7 +61,7 @@ class Server:
             ####################################################################
     
             if addr in self.clients:
-                self.logger.info(f"Old client: {addr}")
+                # self.logger.info(f"Old client: {addr}")
                 self.clients[addr].push(datagram)
             else:
                 self.handle_new_client(addr, datagram)

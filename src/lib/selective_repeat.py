@@ -67,13 +67,9 @@ class SelectiveRepeat():
 
                 # TODO: hay que lanzar un thread acá para seguir escuchando los paquetes que llegan
                 
-                while transfer_ack_not_received:
-                    print("entre")
-        
-            
+                while transfer_ack_not_received:       
                     transfer_ack_not_received=False
                     if pkg.type == UPLOAD_TYPE:
-                        print("entre3")
                         self.logger.info(f"[{self.addr}] Client is UPLOADING file")
                         self.receive_file(self.storage, pkg.data.decode())
                     if pkg.type == DOWNLOAD_TYPE:
@@ -150,7 +146,7 @@ class SelectiveRepeat():
                 self.send_package(2, NO_FLAG, data_length, data, self.seq_num, self.seq_num)      
               
                 self.paquetes_en_vuelo += 1 # Agregar paquetes en vuelo es solo una vez que se es sender (NO agregar a send_package() )
-                self.logger.info(f"[{self.addr}] Paquetes en vuelo: {self.paquetes_en_vuelo}\n")
+                # self.logger.info(f"[{self.addr}] Paquetes en vuelo: {self.paquetes_en_vuelo}\n")
                 
                 file_size -= data_length
             
@@ -159,7 +155,7 @@ class SelectiveRepeat():
          
         
         ##Si todavia no tengo lugar en paquetes_en_vuelo para el FIN, deberia esperar a un ACK...
-        self.logger.debug("Salgo del loop principal")
+        # self.logger.debug("Salgo del loop principal")
         
         
         #self.send_package(2, FIN, 0, ''.encode(), self.seq_num, self.ack_num)     
@@ -168,7 +164,7 @@ class SelectiveRepeat():
 
         
         while(self.paquetes_en_vuelo > 0):
-            self.logger.debug(f"La cantidad de paquetes en vuelo es: {self.paquetes_en_vuelo}")               
+            # self.logger.debug(f"La cantidad de paquetes en vuelo es: {self.paquetes_en_vuelo}")               
                 
         
             self.get_acknowledge()
@@ -188,19 +184,15 @@ class SelectiveRepeat():
         
             
             
-        self.logger.debug("Terminé send_file")
+        # self.logger.debug("Terminé send_file")
 
-    def send_file2(self, file_path):
-        print("envio archivo")
+   
 
     def get_acknowledge(self):
-        print("\033[91m {}\033[00m" .format("EMPIEZO UN GETACK"))
-
-        print("ORDENO ALREADY_ACKA afuera")
+       
         pkg_to_remove = []
         for seq_num in self.already_acked_pkgs:
             if seq_num == self.ack_num:
-                print("\033[91m {}\033[00m" .format("received awaited!!!", seq_num))
                 self.paquetes_en_vuelo -= 1
                 pkg_to_remove.append(seq_num)
                 self.ack_num += 1
@@ -241,16 +233,13 @@ class SelectiveRepeat():
                 
                 self.handle_unordered_package_by_sender(pkg.seq_number) 
                 
-                print("\033[91m {}\033[00m" .format("SIGO DESPUES DE GETACK"))
                 self.already_acked_pkgs.sort()
                 
                 #Voy checkeando en orden que paqutes ya fueron ackeados
                 #revisar!!
-                print("ORDENO ALREADY_ACK")
                 pkg_to_remove = []
                 for seq_num in self.already_acked_pkgs:
                     if seq_num == self.ack_num:
-                        print("\033[91m {}\033[00m" .format("received awaited!!!", seq_num))
                         self.paquetes_en_vuelo -= 1
                         pkg_to_remove.append(seq_num)
                         self.ack_num += 1
@@ -306,7 +295,6 @@ class SelectiveRepeat():
         #PORQUE ME LLEGAN 2 ACKS DEL MISMO PAQUETE?? EN QUE ESCENARIO?
         if seq_number not in self.already_acked_pkgs:
             self.already_acked_pkgs.append(seq_number)
-            print ("ALREADY ACKED PKGS", self.already_acked_pkgs)
             self.get_acknowledge()           
 
         return
@@ -322,17 +310,15 @@ class SelectiveRepeat():
             self.timer.cancel()
         fin_received=False
         file = open(destination_path + "/" + file_name, "wb+")
-        print ("ESTOYRECIBIENDO")
         keep_receiving = True
         while keep_receiving:
             
             try:
                 datagram = self.datagram_queue.get(block=True, timeout=5)  # Espera hasta 5 segundos por un elemento
                 # Procesar el datagrama obtenido de la cola
-                #print("Datagrama obtenido:", datagram)
             except Empty:
                 # Se produce un timeout, la cola está vacía
-                print("La cola está vacía o el timeout ha expirado. Finalizando Comunicacion.")
+                print("Finalizando Comunicacion.")
                 #keep_receiving = False
 
                 exit()  # Sale del programa
@@ -376,7 +362,6 @@ class SelectiveRepeat():
                 
                 # Casos de falla
                 elif pkg.seq_number < self.ack_num: # Paquete duplicado (caso que ack no llega) - 1)
-                    print("MANDO UN DUPLICATED_ACK")
                     self.send_acknowledge('DUPLICATE_ACK', pkg.seq_number)
                     continue
 
@@ -412,8 +397,7 @@ class SelectiveRepeat():
                 
         self.logger.info(f"[{self.addr}] File {file_name} received")
 
-    def receive_file2(self, destination_path, file_name):
-        print("recibo archivo")
+
 
     def send_acknowledge(self, type, seq_number):
         if type == 'SYNACK':
@@ -471,7 +455,7 @@ class SelectiveRepeat():
             self.timers[pkg.seq_number].cancel()  # Cancela el timer anterior si existe
 
         self.timers[pkg.seq_number] = threading.Timer(PKG_TIMEOUT, self.handle_timeout_concurrente, args=(pkg,))
-        self.logger.debug(f"Arranco un timer para el paquete {pkg.seq_number}")
+        # self.logger.debug(f"Arranco un timer para el paquete {pkg.seq_number}")
         self.timers[pkg.seq_number].start()
 
     def handle_timeout_concurrente(self, pkg: Package):
@@ -529,7 +513,6 @@ class SelectiveRepeat():
         # Guarda el último paquete enviado para retransmitirlo en caso de timeout
         self.last_sent_pkg = pkg
         if flag == NO_FLAG: # Paquetes con data
-            print("EMPIEXA TIMER CONCURRENTE")
             self.start_concurrent_timer(pkg)
         elif flag == SYN or flag == START_TRANSFER or flag == FIN: # Paquetes del sender en el handshake
             self.start_timer(pkg)
